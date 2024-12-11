@@ -138,6 +138,7 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
             test_mean.append(mean)
 
             test_feature_bank.append(torch.stack(feature_list, dim=1))
+            train_cos_list.append(torch.stack(cos_list, dim=1))
             counter += len(mean)
 
         # [D, N]
@@ -185,6 +186,38 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
     plt.savefig(f"results/sim_test_train_model.png")
     plt.close()
 
+    n = 2
+    data = [
+            torch.mean(train_cos_list[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy(),
+            torch.mean(test_cos_list[:, :n*(n-1)//2])[:num_of_samples].to('cpu').detach().numpy().copy()
+    ]
+    ks_result = test_method(data[0], data[1], alternative='two-sided', method='auto')
+    # plt.title(f'{num_of_samples}_{ks_result.pvalue}')
+    plt.title(f'train & test similarity distribution, {num_of_samples} samples')
+    plt.hist(data[0], 30, alpha=0.6, density=False, label=olabels[0], stacked=False, range=(0.4, 1.0), color=color[0])
+    plt.hist(data[1], 30, alpha=0.6, density=False, label=olabels[1], stacked=False, range=(0.4, 1.0), color=color[1])
+    plt.legend()
+    plt.ylabel('The number of samples')
+    plt.xlabel('Mean Cosine Similarity')
+    plt.savefig(f"results/sim_test_train_model_(n={n}).png")
+    plt.close()
+
+    n = 5
+    data = [
+            torch.mean(train_cos_list[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy(),
+            torch.mean(test_cos_list[:, :n*(n-1)//2])[:num_of_samples].to('cpu').detach().numpy().copy()
+    ]
+    ks_result = test_method(data[0], data[1], alternative='two-sided', method='auto')
+    # plt.title(f'{num_of_samples}_{ks_result.pvalue}')
+    plt.title(f'train & test similarity distribution, {num_of_samples} samples')
+    plt.hist(data[0], 30, alpha=0.6, density=False, label=olabels[0], stacked=False, range=(0.4, 1.0), color=color[0])
+    plt.hist(data[1], 30, alpha=0.6, density=False, label=olabels[1], stacked=False, range=(0.4, 1.0), color=color[1])
+    plt.legend()
+    plt.ylabel('The number of samples')
+    plt.xlabel('Mean Cosine Similarity')
+    plt.savefig(f"results/sim_test_train_model_(n={n}).png")
+    plt.close()
+
     # data = [train_mean[train_random_sampling].to('cpu').detach().numpy().copy(),test_mean[test_random_sampling].to('cpu').detach().numpy().copy()]
     data = [train_median[:num_of_samples].to('cpu').detach().numpy().copy(),test_median[:num_of_samples].to('cpu').detach().numpy().copy()]
     ks_result_median = test_method(data[0], data[1], alternative='two-sided', method='auto')
@@ -214,8 +247,8 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
     ks_result_min = test_method(data[0], data[1], alternative='two-sided', method='auto')
     # plt.title(f'{num_of_samples}_{ks_result.pvalue}')
     plt.title(f'train & test Varriance distribution, {num_of_samples} samples')
-    plt.hist(data[0], 30, alpha=0.6, density=False, label=olabels[0], stacked=False, range=(0.0, 0.1), color=color[0])
-    plt.hist(data[1], 30, alpha=0.6, density=False, label=olabels[1], stacked=False, range=(0.0, 0.1), color=color[1])
+    plt.hist(data[0], 30, alpha=0.6, density=False, label=olabels[0], stacked=False, range=(0.4, 1.0), color=color[0])
+    plt.hist(data[1], 30, alpha=0.6, density=False, label=olabels[1], stacked=False, range=(0.4, 1.0), color=color[1])
     plt.legend()
     plt.ylabel('The number of samples')
     plt.xlabel('Minimum')
@@ -226,8 +259,8 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
     ks_result_max = test_method(data[0], data[1], alternative='two-sided', method='auto')
     # plt.title(f'{num_of_samples}_{ks_result.pvalue}')
     plt.title(f'train & test Varriance distribution, {num_of_samples} samples')
-    plt.hist(data[0], 30, alpha=0.6, density=False, label=olabels[0], stacked=False, range=(0.0, 0.1), color=color[0])
-    plt.hist(data[1], 30, alpha=0.6, density=False, label=olabels[1], stacked=False, range=(0.0, 0.1), color=color[1])
+    plt.hist(data[0], 30, alpha=0.6, density=False, label=olabels[0], stacked=False, range=(0.4, 1.0), color=color[0])
+    plt.hist(data[1], 30, alpha=0.6, density=False, label=olabels[1], stacked=False, range=(0.4, 1.0), color=color[1])
     plt.legend()
     plt.ylabel('The number of samples')
     plt.xlabel('Maximum')
