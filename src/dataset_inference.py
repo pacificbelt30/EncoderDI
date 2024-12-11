@@ -1,11 +1,19 @@
+import argparse
+import os
+import random
+import csv
+from scipy.stats import ttest_ind, kstest
+
 import torch
 import torchvision
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 from sklearn.mixture import GaussianMixture
-from scipy.stats import ttest_ind
 import numpy as np
 
+from tqdm import tqdm
+import wandb
+import utils
 
 def verify_model(model, trainloader, valloader, testloader, n_components: int=50, covariance: str='diag'):
     """
@@ -57,6 +65,91 @@ def verify_model(model, trainloader, valloader, testloader, n_components: int=50
     return p_value, t_statistic, effect_size
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Train MoCo')
+    parser.add_argument('--feature_dim', default=128, type=int, help='Feature dim for each image')
+    parser.add_argument('--batch_size', default=256, type=int, help='Number of images in each mini-batch')
+    parser.add_argument('--classes', default=10, type=int, help='the number of classes')
+    parser.add_argument('--num_of_samples', default=2500, type=int, help='num of samples')
+    parser.add_argument('--dataset', default='stl10', type=str, help='Training Dataset (e.g. CIFAR10, STL10)')
+    parser.add_argument('--seed', default=42, type=int, help='specify static random seed')
+    parser.add_argument('--model_path', type=str, default='results/128_4096_0.5_0.999_200_256_500_model.pth',
+                        help='The pretrained model path')
+    parser.add_argument('--wandb_model_runpath', default='', type=str, help='the runpath if using a model stored in WandB')
+    parser.add_argument('--wandb_project', default='default_project', type=str, help='WandB Project name')
+    parser.add_argument('--wandb_run', default='default_run', type=str, help='WandB run name')
+    parser.add_argument('--is_encoder', action='store_true', help='is model encoder?')
+    parser.add_argument('--is_modification', action='store_true', help='is model modificated?')
+    parser.add_argument('--model_modification_method', default='', type=str, help='is is_modification, specify model modification method(e.g. quant, prune, distill)')
+    parser.add_argument('--use_thop', action='store_true', help='is loaded model using thop?')
+
+    # args parse
+    args = parser.parse_args()
+    batch_size = args.batch_size
+
+    # initialize random seed
+    utils.set_random_seed(args.seed)
+
+    if not os.path.exists('results'):
+        os.mkdir('results')
+
+    # wandb init
+    config = {
+        "arch": "resnet34",
+        "dataset": args.dataset,
+        "batch_size": args.batch_size,
+        "num_of_samples": args.num_of_samples,
+        "seed": args.seed,
+        "is_encoder": args.is_encoder,
+        "is_modification": args.is_modification,
+        "modification_method": args.model_modification_method,
+    }
+    wandb.init(project=args.wandb_project, name=args.wandb_run, config=config)
+
+    # data prepare
+    if args.dataset == 'stl10':
+        memory_data = utils.STL10NAug(root='data', split='unlabeled', transform=utils.stl_train_transform, download=True)
+        memory_data.set_mia_train_dataset_flag(True)
+        test_data = utils.STL10NAug(root='data', split='unlabeled', transform=utils.stl_train_transform, download=True)
+        test_data.set_mia_train_dataset_flag(False)
+    elif args.dataset == 'cifar10':
+        memory_data = utils.CIFAR10NAug(root='data', train=True, transform=utils.train_transform, download=True, n=10)
+        test_data = utils.CIFAR10NAug(root='data', train=False, transform=utils.train_transform, download=True, n=10)
+    else:
+        memory_data = utils.CIFAR100NAug(root='data', train=True, transform=utils.train_transform, download=True, n=10)
+        test_data = utils.CIFAR100NAug(root='data', train=False, transform=utils.train_transform, download=True, n=10)
+    shuffle=True
+    memory_loader = DataLoader(memory_data, batch_size=batch_size, shuffle=shuffle, num_workers=8, pin_memory=True)
+    test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=shuffle, num_workers=8, pin_memory=True)
+
+    # model setup and optimizer config
+    model_path = ''
+    if args.wandb_model_runpath != '':
+        import os
+        if os.path.exists(args.model_path):
+            os.remove(args.model_path)
+        base_model = wandb.restore(args.model_path, run_path=args.wandb_model_runpath)
+        model_path = base_model.name
+
+    device = 'cuda'
+    # model setup and optimizer config
+    if args.is_encoder:
+        model = Model(args.feature_dim).cuda()
+        model.load_state_dict(torch.load(model_path), strict=not args.use_thop)
+    elif args.is_modification and args.model_modification_method == 'quant':
+        model = Classifier(args.classes).cpu()
+        model = load_quantize_model(model, model_path, torch.randn((3,4,32,32)))
+        device = 'cpu'
+    elif args.is_modification and args.model_modification_method == 'distill':
+        model = StudentModel(args.classes, 'mobilenet_v2').cuda()
+        model.load_state_dict(torch.load(model_path))
+    elif args.is_modification and args.model_modification_method == 'prune':
+        model = Classifier(args.classes).cuda()
+        model.load_state_dict(torch.load(model_path))
+    else:
+        model = Classifier(args.classes).cuda()
+        model.load_state_dict(torch.load(model_path), strict=not args.use_thop)
+
+
     # load CIFAR-10
     transform = transforms.Compose(
         [transforms.ToTensor(),
