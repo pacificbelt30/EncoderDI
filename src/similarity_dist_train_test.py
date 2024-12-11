@@ -2,7 +2,7 @@ import argparse
 import os
 import random
 import csv
-from scipy.stats import kstest
+from scipy.stats import kstest, mannwhitneyu
 
 import torch
 from torch.utils.data import DataLoader
@@ -43,14 +43,18 @@ def seed_check(img, is_train: bool = True):
 
 def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, encoder_flag:bool=True, device:str='cuda'):
     model.eval()
+    test_method = kstest
+    # test_method = mannwhitneyu
     similarity = torch.nn.CosineSimilarity(dim=1)
     test_feature_bank, train_feature_bank = [], []
+    test_cos_list, train_cos_list = [], []
     test_mean, train_mean = [], []
     test_var, train_var = [], []
     test_median, train_median = [], []
     test_max, train_max = [], []
     test_min, train_min = [], []
     counter = 0
+
     with torch.no_grad():
         # generate feature bank
         for x, target in tqdm(memory_data_loader, desc='Feature extracting'):
@@ -69,8 +73,8 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
                 feature_list.append(f)
 
             cos_list = []
-            for i in range(len(x)):
-                for j in range(len(x)):
+            for j in range(len(x)):
+                for i in range(len(x)):
                     if i >= j:
                         continue
                     cos_list.append(similarity(feature_list[i], feature_list[j]))
@@ -83,15 +87,17 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
             train_max.append(max)
             min = torch.min(torch.stack(cos_list, dim=1), dim=1)[0]
             train_min.append(min)
-            result = cos_list[0]
-            for i in range(1,len(cos_list)):
-                result += cos_list[i]
-            result /= len(cos_list)
 
-            train_mean.append(result)
+            # mean = cos_list[0]
+            # for i in range(1,len(cos_list)):
+                # mean += cos_list[i]
+            # mean /= len(cos_list)
+            mean = torch.mean(torch.stack(cos_list, dim=1), dim=1)
+            train_mean.append(mean)
 
             train_feature_bank.append(torch.stack(feature_list, dim=1))
-            counter += len(result)
+            train_cos_list.append(torch.stack(cos_list, dim=1))
+            counter += len(mean)
 
         counter=0
         for x, target in tqdm(test_data_loader, desc='Feature extracting'):
@@ -110,8 +116,8 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
                 feature_list.append(f)
 
             cos_list = []
-            for i in range(len(x)):
-                for j in range(len(x)):
+            for j in range(len(x)):
+                for i in range(len(x)):
                     if i >= j:
                         continue
                     cos_list.append(similarity(feature_list[i], feature_list[j]))
@@ -120,32 +126,46 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
             median = torch.median(torch.stack(cos_list, dim=1), dim=1)[0] # return median_type known as named_tuple
             test_median.append(median)
             max = torch.max(torch.stack(cos_list, dim=1), dim=1)[0]
-            train_max.append(max)
+            test_max.append(max)
             min = torch.min(torch.stack(cos_list, dim=1), dim=1)[0]
-            train_min.append(min)
-            result = cos_list[0]
-            for i in range(1,len(cos_list)):
-                result += cos_list[i]
-            result /= len(cos_list)
+            test_min.append(min)
 
-            test_mean.append(result)
+            # result = cos_list[0]
+            # for i in range(1,len(cos_list)):
+                # result += cos_list[i]
+            # result /= len(cos_list)
+            mean = torch.mean(torch.stack(cos_list, dim=1), dim=1)
+            test_mean.append(mean)
 
             test_feature_bank.append(torch.stack(feature_list, dim=1))
-            counter += len(result)
+            counter += len(mean)
 
         # [D, N]
+        train_cos_list = torch.cat(train_cos_list, dim=0).contiguous()
+        test_cos_list = torch.cat(test_cos_list, dim=0).contiguous()
         train_feature_bank = torch.cat(train_feature_bank, dim=0).contiguous()
         test_feature_bank = torch.cat(test_feature_bank, dim=0).contiguous()
-        train_mean = torch.cat(train_mean, dim=0).contiguous()
-        test_mean = torch.cat(test_mean, dim=0).contiguous()
-        train_var = torch.cat(train_var, dim=0)
-        test_var = torch.cat(test_var, dim=0)
-        train_median = torch.cat(train_median, dim=0)
-        test_median = torch.cat(test_median, dim=0)
-        train_max = torch.cat(train_max, dim=0)
-        test_max = torch.cat(test_max, dim=0)
-        train_min = torch.cat(train_min, dim=0)
-        test_min = torch.cat(test_min, dim=0)
+        # train_mean = torch.cat(train_mean, dim=0).contiguous()
+        # test_mean = torch.cat(test_mean, dim=0).contiguous()
+        # train_var = torch.cat(train_var, dim=0)
+        # test_var = torch.cat(test_var, dim=0)
+        # train_median = torch.cat(train_median, dim=0)
+        # test_median = torch.cat(test_median, dim=0)
+        # train_max = torch.cat(train_max, dim=0)
+        # test_max = torch.cat(test_max, dim=0)
+        # train_min = torch.cat(train_min, dim=0)
+        # test_min = torch.cat(test_min, dim=0)
+
+        train_mean = torch.mean(train_cos_list, dim=1)
+        test_mean = torch.mean(test_cos_list, dim=1)
+        train_var = torch.var(train_cos_list, dim=1)
+        test_var = torch.var(test_cos_list, dim=1)
+        train_median = torch.median(train_cos_list, dim=1)[0]
+        test_median = torch.median(test_cos_list, dim=1)[0]
+        train_min = torch.min(train_cos_list, dim=1)[0]
+        test_min = torch.min(test_cos_list, dim=1)[0]
+        train_max = torch.max(train_cos_list, dim=1)[0]
+        test_max = torch.max(test_cos_list, dim=1)[0]
 
     color = ['tab:blue', 'tab:orange', 'tab:green']
 
@@ -154,7 +174,7 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
     olabels = ['train', 'test']
     # data = [train_mean[train_random_sampling].to('cpu').detach().numpy().copy(),test_mean[test_random_sampling].to('cpu').detach().numpy().copy()]
     data = [train_mean[:num_of_samples].to('cpu').detach().numpy().copy(),test_mean[:num_of_samples].to('cpu').detach().numpy().copy()]
-    ks_result = kstest(data[0], data[1], alternative='two-sided', method='auto')
+    ks_result = test_method(data[0], data[1], alternative='two-sided', method='auto')
     # plt.title(f'{num_of_samples}_{ks_result.pvalue}')
     plt.title(f'train & test similarity distribution, {num_of_samples} samples')
     plt.hist(data[0], 30, alpha=0.6, density=False, label=olabels[0], stacked=False, range=(0.4, 1.0), color=color[0])
@@ -167,7 +187,7 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
 
     # data = [train_mean[train_random_sampling].to('cpu').detach().numpy().copy(),test_mean[test_random_sampling].to('cpu').detach().numpy().copy()]
     data = [train_median[:num_of_samples].to('cpu').detach().numpy().copy(),test_median[:num_of_samples].to('cpu').detach().numpy().copy()]
-    ks_result_median = kstest(data[0], data[1], alternative='two-sided', method='auto')
+    ks_result_median = test_method(data[0], data[1], alternative='two-sided', method='auto')
     # plt.title(f'{num_of_samples}_{ks_result.pvalue}')
     plt.title(f'train & test similarity distribution, {num_of_samples} samples')
     plt.hist(data[0], 30, alpha=0.6, density=False, label=olabels[0], stacked=False, range=(0.4, 1.0), color=color[0])
@@ -179,7 +199,7 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
     plt.close()
 
     data = [train_var[:num_of_samples].to('cpu').detach().numpy().copy(),test_var[:num_of_samples].to('cpu').detach().numpy().copy()]
-    ks_result_var = kstest(data[0], data[1], alternative='two-sided', method='auto')
+    ks_result_var = test_method(data[0], data[1], alternative='two-sided', method='auto')
     # plt.title(f'{num_of_samples}_{ks_result.pvalue}')
     plt.title(f'train & test Varriance distribution, {num_of_samples} samples')
     plt.hist(data[0], 30, alpha=0.6, density=False, label=olabels[0], stacked=False, range=(0.0, 0.1), color=color[0])
@@ -191,7 +211,7 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
     plt.close()
 
     data = [train_min[:num_of_samples].to('cpu').detach().numpy().copy(),test_min[:num_of_samples].to('cpu').detach().numpy().copy()]
-    ks_result_min = kstest(data[0], data[1], alternative='two-sided', method='auto')
+    ks_result_min = test_method(data[0], data[1], alternative='two-sided', method='auto')
     # plt.title(f'{num_of_samples}_{ks_result.pvalue}')
     plt.title(f'train & test Varriance distribution, {num_of_samples} samples')
     plt.hist(data[0], 30, alpha=0.6, density=False, label=olabels[0], stacked=False, range=(0.0, 0.1), color=color[0])
@@ -203,7 +223,7 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
     plt.close()
 
     data = [train_max[:num_of_samples].to('cpu').detach().numpy().copy(),test_max[:num_of_samples].to('cpu').detach().numpy().copy()]
-    ks_result_max = kstest(data[0], data[1], alternative='two-sided', method='auto')
+    ks_result_max = test_method(data[0], data[1], alternative='two-sided', method='auto')
     # plt.title(f'{num_of_samples}_{ks_result.pvalue}')
     plt.title(f'train & test Varriance distribution, {num_of_samples} samples')
     plt.hist(data[0], 30, alpha=0.6, density=False, label=olabels[0], stacked=False, range=(0.0, 0.1), color=color[0])
@@ -215,7 +235,7 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
     plt.close()
 
     data = [train_mean.to('cpu').detach().numpy().copy(),test_mean.to('cpu').detach().numpy().copy()]
-    ks_result_all = kstest(train_mean.to('cpu').detach().numpy().copy(),test_mean.to('cpu').detach().numpy().copy(), alternative='two-sided', method='auto')
+    ks_result_all = test_method(train_mean.to('cpu').detach().numpy().copy(),test_mean.to('cpu').detach().numpy().copy(), alternative='two-sided', method='auto')
     # plt.title(f'all_{ks_result_all.pvalue}')
     plt.title(f'train & test similarity distribution, {num_of_samples} samples, {ks_result_all.pvalue}')
     plt.hist(data[0], 30, alpha=0.6, density=False, label=olabels[0], stacked=False, range=(0.4, 1.0), color=color[0])
@@ -245,16 +265,16 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
         ]
         with open(f'results/sim_train.csv', 'w') as f:
             writer = csv.writer(f)
-            writer.writerow(['similarity', 'variance', 'median', 'min', 'max', 'array'])
+            writer.writerow(['mean', 'variance', 'median', 'min', 'max'])
             # for d1, d2, d3, d4, d5, d6 in zip(train_data[0], train_data[1], train_data[2], train_data[3], train_data[4], train_data[5]):
             for d1, d2, d3, d4, d5, d6 in zip(*train_data):
-                writer.writerow([d1, d2, d3, d4, d5, d6])
+                writer.writerow([d1, d2, d3, d4, d5])
         with open(f'results/sim_test.csv', 'w') as f:
             writer = csv.writer(f)
-            writer.writerow(['similarity', 'variance', 'median', 'min', 'max', 'array'])
+            writer.writerow(['mean', 'variance', 'median', 'min', 'max'])
             # for d1, d2, d3, d4, d5, d6 in zip(test_data[0], test_data[1], test_data[2], test_data[3], test_data[4], test_data[5]):
             for d1, d2, d3, d4, d5, d6 in zip(*test_data):
-                writer.writerow([d1, d2, d3, d4, d5, d6])
+                writer.writerow([d1, d2, d3, d4, d5])
     except:
         import traceback
         traceback.print_exc()
@@ -301,17 +321,18 @@ if __name__ == '__main__':
     wandb.init(project=args.wandb_project, name=args.wandb_run, config=config)
 
     # data prepare
+    query_number = 10
     if args.dataset == 'stl10':
-        memory_data = utils.STL10NAug(root='data', split='unlabeled', transform=utils.stl_train_transform, download=True)
+        memory_data = utils.STL10NAug(root='data', split='unlabeled', transform=utils.stl_train_transform, download=True, n=query_number)
         memory_data.set_mia_train_dataset_flag(True)
-        test_data = utils.STL10NAug(root='data', split='unlabeled', transform=utils.stl_train_transform, download=True)
+        test_data = utils.STL10NAug(root='data', split='unlabeled', transform=utils.stl_train_transform, download=True, n=query_number)
         test_data.set_mia_train_dataset_flag(False)
     elif args.dataset == 'cifar10':
-        memory_data = utils.CIFAR10NAug(root='data', train=True, transform=utils.train_transform, download=True, n=10)
-        test_data = utils.CIFAR10NAug(root='data', train=False, transform=utils.train_transform, download=True, n=10)
+        memory_data = utils.CIFAR10NAug(root='data', train=True, transform=utils.train_transform, download=True, n=query_number)
+        test_data = utils.CIFAR10NAug(root='data', train=False, transform=utils.train_transform, download=True, n=query_number)
     else:
-        memory_data = utils.CIFAR100NAug(root='data', train=True, transform=utils.train_transform, download=True, n=10)
-        test_data = utils.CIFAR100NAug(root='data', train=False, transform=utils.train_transform, download=True, n=10)
+        memory_data = utils.CIFAR100NAug(root='data', train=True, transform=utils.train_transform, download=True, n=query_number)
+        test_data = utils.CIFAR100NAug(root='data', train=False, transform=utils.train_transform, download=True, n=query_number)
     shuffle=True
     memory_loader = DataLoader(memory_data, batch_size=batch_size, shuffle=shuffle, num_workers=8, pin_memory=True)
     test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=shuffle, num_workers=8, pin_memory=True)
@@ -360,6 +381,8 @@ if __name__ == '__main__':
     wandb.save("results/seed_check_train.png")
     wandb.save("results/seed_check_test.png")
     wandb.save("results/sim_test_train_model.png")
+    wandb.save("results/min_test_train_model.png")
+    wandb.save("results/max_test_train_model.png")
     wandb.save("results/median_test_train_model.png")
     wandb.save("results/var_test_train_model.png")
     wandb.save("results/sim_test_train_model_all.png")
