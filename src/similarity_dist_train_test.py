@@ -45,6 +45,7 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
     model.eval()
     similarity = torch.nn.CosineSimilarity(dim=1)
     test_feature_bank, train_feature_bank = [], []
+    test_mean, train_mean = [], []
     test_var, train_var = [], []
     test_median, train_median = [], []
     test_max, train_max = [], []
@@ -87,7 +88,9 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
                 result += cos_list[i]
             result /= len(cos_list)
 
-            train_feature_bank.append(result)
+            train_mean.append(result)
+
+            train_feature_bank.append(torch.stack(feature_list, dim=1))
             counter += len(result)
 
         counter=0
@@ -125,12 +128,16 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
                 result += cos_list[i]
             result /= len(cos_list)
 
-            test_feature_bank.append(result)
+            test_mean.append(result)
+
+            test_feature_bank.append(torch.stack(feature_list, dim=1))
             counter += len(result)
 
         # [D, N]
         train_feature_bank = torch.cat(train_feature_bank, dim=0).contiguous()
         test_feature_bank = torch.cat(test_feature_bank, dim=0).contiguous()
+        train_mean = torch.cat(train_mean, dim=0).contiguous()
+        test_mean = torch.cat(test_mean, dim=0).contiguous()
         train_var = torch.cat(train_var, dim=0)
         test_var = torch.cat(test_var, dim=0)
         train_median = torch.cat(train_median, dim=0)
@@ -142,11 +149,11 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
 
     color = ['tab:blue', 'tab:orange', 'tab:green']
 
-    train_random_sampling = random.sample(range(0, len(train_feature_bank)), num_of_samples)
-    test_random_sampling = random.sample(range(0, len(test_feature_bank)), num_of_samples)
+    train_random_sampling = random.sample(range(0, len(train_mean)), num_of_samples)
+    test_random_sampling = random.sample(range(0, len(test_mean)), num_of_samples)
     olabels = ['train', 'test']
-    # data = [train_feature_bank[train_random_sampling].to('cpu').detach().numpy().copy(),test_feature_bank[test_random_sampling].to('cpu').detach().numpy().copy()]
-    data = [train_feature_bank[:num_of_samples].to('cpu').detach().numpy().copy(),test_feature_bank[:num_of_samples].to('cpu').detach().numpy().copy()]
+    # data = [train_mean[train_random_sampling].to('cpu').detach().numpy().copy(),test_mean[test_random_sampling].to('cpu').detach().numpy().copy()]
+    data = [train_mean[:num_of_samples].to('cpu').detach().numpy().copy(),test_mean[:num_of_samples].to('cpu').detach().numpy().copy()]
     ks_result = kstest(data[0], data[1], alternative='two-sided', method='auto')
     # plt.title(f'{num_of_samples}_{ks_result.pvalue}')
     plt.title(f'train & test similarity distribution, {num_of_samples} samples')
@@ -158,7 +165,7 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
     plt.savefig(f"results/sim_test_train_model.png")
     plt.close()
 
-    # data = [train_feature_bank[train_random_sampling].to('cpu').detach().numpy().copy(),test_feature_bank[test_random_sampling].to('cpu').detach().numpy().copy()]
+    # data = [train_mean[train_random_sampling].to('cpu').detach().numpy().copy(),test_mean[test_random_sampling].to('cpu').detach().numpy().copy()]
     data = [train_median[:num_of_samples].to('cpu').detach().numpy().copy(),test_median[:num_of_samples].to('cpu').detach().numpy().copy()]
     ks_result_median = kstest(data[0], data[1], alternative='two-sided', method='auto')
     # plt.title(f'{num_of_samples}_{ks_result.pvalue}')
@@ -207,8 +214,8 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
     plt.savefig(f"results/max_test_train_model.png")
     plt.close()
 
-    data = [train_feature_bank.to('cpu').detach().numpy().copy(),test_feature_bank.to('cpu').detach().numpy().copy()]
-    ks_result_all = kstest(train_feature_bank.to('cpu').detach().numpy().copy(),test_feature_bank.to('cpu').detach().numpy().copy(), alternative='two-sided', method='auto')
+    data = [train_mean.to('cpu').detach().numpy().copy(),test_mean.to('cpu').detach().numpy().copy()]
+    ks_result_all = kstest(train_mean.to('cpu').detach().numpy().copy(),test_mean.to('cpu').detach().numpy().copy(), alternative='two-sided', method='auto')
     # plt.title(f'all_{ks_result_all.pvalue}')
     plt.title(f'train & test similarity distribution, {num_of_samples} samples, {ks_result_all.pvalue}')
     plt.hist(data[0], 30, alpha=0.6, density=False, label=olabels[0], stacked=False, range=(0.4, 1.0), color=color[0])
@@ -220,18 +227,34 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
     plt.close()
 
     try:
-        train_data = [train_feature_bank[:num_of_samples].to('cpu').detach().numpy().copy(), train_var[:num_of_samples].to('cpu').detach().numpy().copy(), train_median[:num_of_samples].to('cpu').detach().numpy().copy(), train_min[:num_of_samples].to('cpu').detach().numpy().copy(), train_max[:num_of_samples].to('cpu').detach().numpy().copy()]
-        test_data = [test_feature_bank[:num_of_samples].to('cpu').detach().numpy().copy(), test_var[:num_of_samples].to('cpu').detach().numpy().copy(), test_median[:num_of_samples].to('cpu').detach().numpy().copy(), train_min[:num_of_samples].to('cpu').detach().numpy().copy(), train_max[:num_of_samples].to('cpu').detach().numpy().copy()]
+        train_data = [
+            train_mean[:num_of_samples].to('cpu').detach().numpy().copy(),
+            train_var[:num_of_samples].to('cpu').detach().numpy().copy(),
+            train_median[:num_of_samples].to('cpu').detach().numpy().copy(),
+            train_min[:num_of_samples].to('cpu').detach().numpy().copy(),
+            train_max[:num_of_samples].to('cpu').detach().numpy().copy(),
+            train_feature_bank[:num_of_samples].to('cpu').detach().numpy().copy()
+        ]
+        test_data = [
+            test_mean[:num_of_samples].to('cpu').detach().numpy().copy(),
+            test_var[:num_of_samples].to('cpu').detach().numpy().copy(),
+            test_median[:num_of_samples].to('cpu').detach().numpy().copy(),
+            test_min[:num_of_samples].to('cpu').detach().numpy().copy(),
+            test_max[:num_of_samples].to('cpu').detach().numpy().copy(),
+            test_feature_bank[:num_of_samples].to('cpu').detach().numpy().copy()
+        ]
         with open(f'results/sim_train.csv', 'w') as f:
             writer = csv.writer(f)
-            writer.writerow(['similarity', 'variance', 'median', 'min', 'max'])
-            for d1, d2, d3, d4, d5 in zip(train_data[0], train_data[1], train_data[2], train_data[3], train_data[4]):
-                writer.writerow([d1, d2, d3, d4, d5])
+            writer.writerow(['similarity', 'variance', 'median', 'min', 'max', 'array'])
+            # for d1, d2, d3, d4, d5, d6 in zip(train_data[0], train_data[1], train_data[2], train_data[3], train_data[4], train_data[5]):
+            for d1, d2, d3, d4, d5, d6 in zip(*train_data):
+                writer.writerow([d1, d2, d3, d4, d5, d6])
         with open(f'results/sim_test.csv', 'w') as f:
             writer = csv.writer(f)
-            writer.writerow(['similarity', 'variance', 'median', 'min', 'max'])
-            for d1, d2, d3, d4, d5 in zip(test_data[0], test_data[1], test_data[2], test_data[3], test_data[4]):
-                writer.writerow([d1, d2, d3, d4, d5])
+            writer.writerow(['similarity', 'variance', 'median', 'min', 'max', 'array'])
+            # for d1, d2, d3, d4, d5, d6 in zip(test_data[0], test_data[1], test_data[2], test_data[3], test_data[4], test_data[5]):
+            for d1, d2, d3, d4, d5, d6 in zip(*test_data):
+                writer.writerow([d1, d2, d3, d4, d5, d6])
     except:
         import traceback
         traceback.print_exc()
