@@ -14,7 +14,7 @@ import utils
 from model import Model, Classifier, StudentModel
 from quantize import load_quantize_model
 
-def seed_check(img):
+def seed_check(img, is_train: bool = True):
     fig, axes = plt.subplots(3, 3, tight_layout=True)
     # fig, axes = plt.subplots(2, 5, tight_layout=True)
     axes[0, 0].axis("off")
@@ -35,7 +35,10 @@ def seed_check(img):
     axes[2, 0].imshow(utils.inv_transform(img[6]).permute(1, 2, 0))
     axes[2, 1].imshow(utils.inv_transform(img[7]).permute(1, 2, 0))
     axes[2, 2].imshow(utils.inv_transform(img[8]).permute(1, 2, 0))
-    fig.savefig('results/seed_check.png')
+    if is_train:
+        fig.savefig('results/seed_check_train.png')
+    else:
+        fig.savefig('results/seed_check_test.png')
     plt.close()
 
 def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, encoder_flag:bool=True, device:str='cuda'):
@@ -53,7 +56,7 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
                 break
             if counter == 0:
                 img = [img[1] for img in x]
-                seed_check(img)
+                seed_check(img, True)
             feature_list = []
             for data in x:
                 if encoder_flag:
@@ -86,6 +89,9 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
             target = target.to(device)
             if counter > num_of_samples:
                 break
+            if counter == 0:
+                img = [img[1] for img in x]
+                seed_check(img, False)
             feature_list = []
             for data in x:
                 if encoder_flag:
@@ -216,9 +222,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
     batch_size = args.batch_size
 
-    # initialize random seed
-    utils.set_random_seed(args.seed)
-
     # create output directory
     if not os.path.exists('results'):
         os.mkdir('results')
@@ -280,6 +283,10 @@ if __name__ == '__main__':
         model = Classifier(args.classes).cuda()
         model.load_state_dict(torch.load(model_path), strict=not args.use_thop)
 
+    # initialize random seed
+    # Seed is set after the model is defined because random initialization of the model weights is entered
+    utils.set_random_seed(args.seed)
+
     pvalue, statistic, var_pvalue, var_statistic, med_pvalue, med_statistic = sim(model, memory_loader, test_loader, num_of_samples=args.num_of_samples, encoder_flag=args.is_encoder, device=device)
     # sim(model_q, memory_loader, memory_loader)
 
@@ -288,7 +295,9 @@ if __name__ == '__main__':
 
     # wandb finish
     os.remove(os.path.join(wandb.run.dir, args.model_path))
-    wandb.save("results/seed_check.png")
+    # wandb.save("results/seed_check.png")
+    wandb.save("results/seed_check_train.png")
+    wandb.save("results/seed_check_test.png")
     wandb.save("results/sim_test_train_model.png")
     wandb.save("results/median_test_train_model.png")
     wandb.save("results/var_test_train_model.png")
