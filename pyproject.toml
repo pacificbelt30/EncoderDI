@@ -1,0 +1,37 @@
+[project]
+name = "encoderdi"
+version = "0.1.0"
+description = "Add your description here"
+authors = [
+    { name = "pacificbelt30", email = "57101176+pacificbelt30@users.noreply.github.com" }
+]
+dependencies = [
+    "tqdm>=4.67.1",
+    "numpy>=2.1.3",
+    "opencv-python>=4.10.0.84",
+    "wandb>=0.18.7",
+    "argparse>=1.4.0",
+    "scipy>=1.14.1",
+    "torch>=2.5.1",
+    "torchvision>=0.20.1",
+    "matplotlib>=3.9.3",
+    "pandas>=2.2.3",
+]
+readme = "README.md"
+requires-python = ">= 3.8"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.rye]
+managed = true
+dev-dependencies = [
+    "pynvim>=0.5.2",
+]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/encoderdi"]

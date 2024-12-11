@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 from torchvision.datasets import CIFAR10, CIFAR100, STL10
 from tqdm import tqdm
 import wandb
+import os
 
 import utils
 from utils import train_val
@@ -81,6 +82,10 @@ if __name__ == '__main__':
     # initialize random seed
     utils.set_random_seed(args.seed)
 
+    # create output directory
+    if not os.path.exists('results'):
+        os.mkdir('results')
+
     if args.wandb_model_runpath != '':
         import os
         if os.path.exists(args.model_path):
@@ -100,7 +105,8 @@ if __name__ == '__main__':
         "arch": args.arch,
         "seed": args.seed,
         "prune_rate": args.prune_rate,
-        "wandb_model_runpath": args.wandb_model_runpath
+        "wandb_model_runpath": args.wandb_model_runpath,
+        "use_thop": args.use_thop
     }
     wandb.init(project=args.wandb_project, name=args.wandb_run, config=config)
 
