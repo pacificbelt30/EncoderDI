@@ -138,7 +138,7 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
             test_mean.append(mean)
 
             test_feature_bank.append(torch.stack(feature_list, dim=1))
-            train_cos_list.append(torch.stack(cos_list, dim=1))
+            test_cos_list.append(torch.stack(cos_list, dim=1))
             counter += len(mean)
 
         # [D, N]
