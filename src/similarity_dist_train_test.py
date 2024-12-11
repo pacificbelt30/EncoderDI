@@ -191,7 +191,7 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
             torch.mean(train_cos_list[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy(),
             torch.mean(test_cos_list[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy()
     ]
-    ks_result = test_method(data[0], data[1], alternative='two-sided', method='auto')
+    ks_result_2 = test_method(data[0], data[1], alternative='two-sided', method='auto')
     # plt.title(f'{num_of_samples}_{ks_result.pvalue}')
     plt.title(f'train & test similarity distribution, {num_of_samples} samples')
     plt.hist(data[0], 30, alpha=0.6, density=False, label=olabels[0], stacked=False, range=(0.4, 1.0), color=color[0])
@@ -207,7 +207,7 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
             torch.mean(train_cos_list[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy(),
             torch.mean(test_cos_list[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy()
     ]
-    ks_result = test_method(data[0], data[1], alternative='two-sided', method='auto')
+    ks_result_3 = test_method(data[0], data[1], alternative='two-sided', method='auto')
     # plt.title(f'{num_of_samples}_{ks_result.pvalue}')
     plt.title(f'train & test similarity distribution, {num_of_samples} samples')
     plt.hist(data[0], 30, alpha=0.6, density=False, label=olabels[0], stacked=False, range=(0.4, 1.0), color=color[0])
@@ -223,7 +223,7 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
             torch.mean(train_cos_list[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy(),
             torch.mean(test_cos_list[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy()
     ]
-    ks_result = test_method(data[0], data[1], alternative='two-sided', method='auto')
+    ks_result_5 = test_method(data[0], data[1], alternative='two-sided', method='auto')
     # plt.title(f'{num_of_samples}_{ks_result.pvalue}')
     plt.title(f'train & test similarity distribution, {num_of_samples} samples')
     plt.hist(data[0], 30, alpha=0.6, density=False, label=olabels[0], stacked=False, range=(0.4, 1.0), color=color[0])
@@ -328,7 +328,7 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
         import traceback
         traceback.print_exc()
 
-    return ks_result.pvalue, ks_result.statistic, ks_result_var.pvalue, ks_result_var.statistic, ks_result_median.pvalue, ks_result_median.statistic, ks_result_min.pvalue, ks_result_min.statistic, ks_result_max.pvalue, ks_result_max.statistic
+    return ks_result.pvalue, ks_result.statistic, ks_result_var.pvalue, ks_result_var.statistic, ks_result_median.pvalue, ks_result_median.statistic, ks_result_min.pvalue, ks_result_min.statistic, ks_result_max.pvalue, ks_result_max.statistic, ks_result_2.pvalue, ks_result_2.statistic, ks_result_3.pvalue, ks_result_3.statistic, ks_result_5.pvalue, ks_result_5.statistic
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train MoCo')
@@ -418,11 +418,20 @@ if __name__ == '__main__':
     # Seed is set after the model is defined because random initialization of the model weights is entered
     utils.set_random_seed(args.seed)
 
-    pvalue, statistic, var_pvalue, var_statistic, med_pvalue, med_statistic, min_pvalue, min_statistic, max_pvalue, max_statistic = sim(model, memory_loader, test_loader, num_of_samples=args.num_of_samples, encoder_flag=args.is_encoder, device=device)
+    pvalue, statistic, var_pvalue, var_statistic, med_pvalue, med_statistic, min_pvalue, min_statistic, max_pvalue, max_statistic, pvalue_2, statistic_2, pvalue_3, statistic_3, pvalue_5, statistic_5 = sim(model, memory_loader, test_loader, num_of_samples=args.num_of_samples, encoder_flag=args.is_encoder, device=device)
     # sim(model_q, memory_loader, memory_loader)
 
     # save kstest result
-    wandb.log({'pvalue': pvalue, 'statistic': statistic, 'var_pvalue': var_pvalue, 'var_statistic': var_statistic, 'med_pvalue': med_pvalue, 'med_statistic': med_statistic, 'min_pvalue': min_pvalue, 'min_statistic': min_statistic, 'max_pvalue': max_pvalue, 'max_statistic': max_statistic})
+    wandb.log({
+        'pvalue': pvalue, 'statistic': statistic,
+        'var_pvalue': var_pvalue, 'var_statistic': var_statistic,
+        'med_pvalue': med_pvalue, 'med_statistic': med_statistic,
+        'min_pvalue': min_pvalue, 'min_statistic': min_statistic,
+        'max_pvalue': max_pvalue, 'max_statistic': max_statistic,
+        'mean_pvalue_2': pvalue_2, 'mean_statistic_2': statistic_2,
+        'mean_pvalue_3': pvalue_3, 'mean_statistic_3': statistic_3,
+        'mean_pvalue_5': pvalue_5, 'mean_statistic_5': statistic_5
+    })
 
     # wandb finish
     os.remove(os.path.join(wandb.run.dir, args.model_path))
