@@ -189,7 +189,7 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
     n = 2
     data = [
             torch.mean(train_cos_list[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy(),
-            torch.mean(test_cos_list[:, :n*(n-1)//2])[:num_of_samples].to('cpu').detach().numpy().copy()
+            torch.mean(test_cos_list[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy()
     ]
     ks_result = test_method(data[0], data[1], alternative='two-sided', method='auto')
     # plt.title(f'{num_of_samples}_{ks_result.pvalue}')
@@ -205,7 +205,7 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
     n = 5
     data = [
             torch.mean(train_cos_list[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy(),
-            torch.mean(test_cos_list[:, :n*(n-1)//2])[:num_of_samples].to('cpu').detach().numpy().copy()
+            torch.mean(test_cos_list[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy()
     ]
     ks_result = test_method(data[0], data[1], alternative='two-sided', method='auto')
     # plt.title(f'{num_of_samples}_{ks_result.pvalue}')
