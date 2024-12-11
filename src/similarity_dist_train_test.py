@@ -202,6 +202,22 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
     plt.savefig(f"results/sim_test_train_model_(n={n}).png")
     plt.close()
 
+    n = 3
+    data = [
+            torch.mean(train_cos_list[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy(),
+            torch.mean(test_cos_list[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy()
+    ]
+    ks_result = test_method(data[0], data[1], alternative='two-sided', method='auto')
+    # plt.title(f'{num_of_samples}_{ks_result.pvalue}')
+    plt.title(f'train & test similarity distribution, {num_of_samples} samples')
+    plt.hist(data[0], 30, alpha=0.6, density=False, label=olabels[0], stacked=False, range=(0.4, 1.0), color=color[0])
+    plt.hist(data[1], 30, alpha=0.6, density=False, label=olabels[1], stacked=False, range=(0.4, 1.0), color=color[1])
+    plt.legend()
+    plt.ylabel('The number of samples')
+    plt.xlabel('Mean Cosine Similarity')
+    plt.savefig(f"results/sim_test_train_model_(n={n}).png")
+    plt.close()
+
     n = 5
     data = [
             torch.mean(train_cos_list[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy(),
@@ -414,6 +430,9 @@ if __name__ == '__main__':
     wandb.save("results/seed_check_train.png")
     wandb.save("results/seed_check_test.png")
     wandb.save("results/sim_test_train_model.png")
+    wandb.save("results/sim_test_train_model_(n=2).png")
+    wandb.save("results/sim_test_train_model_(n=3).png")
+    wandb.save("results/sim_test_train_model_(n=5).png")
     wandb.save("results/min_test_train_model.png")
     wandb.save("results/max_test_train_model.png")
     wandb.save("results/median_test_train_model.png")
