@@ -14,8 +14,10 @@ import numpy as np
 from tqdm import tqdm
 import wandb
 import utils
+from model import Model, Classifier, StudentModel
+from quantize import load_quantize_model
 
-def verify_model(model, trainloader, valloader, testloader, n_components: int=50, covariance: str='diag'):
+def verify_model(model, trainloader, valloader, testloader, n_components: int=50, covariance: str='diag', encoder_flag: bool = True):
     """
     Dataset Inference
     Returns:
@@ -30,25 +32,38 @@ def verify_model(model, trainloader, valloader, testloader, n_components: int=50
     val_representations = []
     test_representations = []
 
+    device = 'cuda'
     with torch.no_grad():
         for data in trainloader:
             images, _ = data
-            representations = model(images)
+            # representations = model(images)
+            if encoder_flag:
+                representations, _ = model(images.to(device, non_blocking=True))
+            else:
+                representations = model(images.to(device, non_blocking=True))
             train_representations.append(representations)
 
         for data in valloader:
             images, _ = data
-            representations = model(images)
+            # representations = model(images)
+            if encoder_flag:
+                representations, _ = model(images.to(device, non_blocking=True))
+            else:
+                representations = model(images.to(device, non_blocking=True))
             val_representations.append(representations)
 
         for data in testloader:
             images, _ = data
-            representations = model(images)
+            # representations = model(images)
+            if encoder_flag:
+                representations, _ = model(images.to(device, non_blocking=True))
+            else:
+                representations = model(images.to(device, non_blocking=True))
             test_representations.append(representations)
 
-    train_representations = torch.cat(train_representations).numpy()
-    val_representations = torch.cat(val_representations).numpy()
-    test_representations = torch.cat(test_representations).numpy()
+    train_representations = torch.cat(train_representations).contiguous().numpy()
+    val_representations = torch.cat(val_representations).contiguous().numpy()
+    test_representations = torch.cat(test_representations).contiguous().numpy()
 
     # create density estimator (Gaussian Mixture Model)
     gmm = GaussianMixture(n_components=n_components, covariance_type=covariance)
@@ -65,7 +80,7 @@ def verify_model(model, trainloader, valloader, testloader, n_components: int=50
     return p_value, t_statistic, effect_size
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Train MoCo')
+    parser = argparse.ArgumentParser(description='DI for SSL')
     parser.add_argument('--feature_dim', default=128, type=int, help='Feature dim for each image')
     parser.add_argument('--batch_size', default=256, type=int, help='Number of images in each mini-batch')
     parser.add_argument('--classes', default=10, type=int, help='the number of classes')
@@ -107,24 +122,35 @@ if __name__ == '__main__':
 
     # data prepare
     if args.dataset == 'stl10':
-        memory_data = utils.STL10NAug(root='data', split='unlabeled', transform=utils.stl_train_transform, download=True)
-        memory_data.set_mia_train_dataset_flag(True)
+        train_data = utils.STL10NAug(root='data', split='unlabeled', transform=utils.stl_train_transform, download=True)
+        train_data.set_mia_train_dataset_flag(True)
         test_data = utils.STL10NAug(root='data', split='unlabeled', transform=utils.stl_train_transform, download=True)
         test_data.set_mia_train_dataset_flag(False)
     elif args.dataset == 'cifar10':
-        memory_data = utils.CIFAR10NAug(root='data', train=True, transform=utils.train_transform, download=True, n=10)
-        test_data = utils.CIFAR10NAug(root='data', train=False, transform=utils.train_transform, download=True, n=10)
+        # train_data = utils.CIFAR10NAug(root='data', train=True, transform=utils.train_transform, download=True, n=10)
+        # test_data = utils.CIFAR10NAug(root='data', train=False, transform=utils.train_transform, download=True, n=10)
+        train_data = torchvision.datasets.CIFAR10(root='data', train=True, transform=utils.train_transform, download=True)
+        test_data = torchvision.datasets.CIFAR10(root='data', train=False, transform=utils.train_transform, download=True)
     else:
-        memory_data = utils.CIFAR100NAug(root='data', train=True, transform=utils.train_transform, download=True, n=10)
-        test_data = utils.CIFAR100NAug(root='data', train=False, transform=utils.train_transform, download=True, n=10)
+        # train_data = utils.CIFAR100NAug(root='data', train=True, transform=utils.train_transform, download=True, n=10)
+        # test_data = utils.CIFAR100NAug(root='data', train=False, transform=utils.train_transform, download=True, n=10)
+        train_data = torchvision.datasets.CIFAR100(root='data', train=True, transform=utils.train_transform, download=True)
+        test_data = torchvision.datasets.CIFAR100(root='data', train=False, transform=utils.train_transform, download=True)
+
+    # random split train and test
+    train_size = int(0.5 * len(train_data))
+    val_size = len(train_data) - train_size
+    generator = torch.Generator().manual_seed(args.seed)
+    train_data, val_data = torch.utils.data.random_split(train_data, [train_size, val_size], generator)
+
     shuffle=True
-    memory_loader = DataLoader(memory_data, batch_size=batch_size, shuffle=shuffle, num_workers=8, pin_memory=True)
+    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=shuffle, num_workers=8, pin_memory=True)
     test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=shuffle, num_workers=8, pin_memory=True)
+    val_loader = DataLoader(val_data, batch_size=batch_size, shuffle=shuffle, num_workers=8)
 
     # model setup and optimizer config
     model_path = ''
     if args.wandb_model_runpath != '':
-        import os
         if os.path.exists(args.model_path):
             os.remove(args.model_path)
         base_model = wandb.restore(args.model_path, run_path=args.wandb_model_runpath)
@@ -150,30 +176,6 @@ if __name__ == '__main__':
         model.load_state_dict(torch.load(model_path), strict=not args.use_thop)
 
 
-    # load CIFAR-10
-    transform = transforms.Compose(
-        [transforms.ToTensor(),
-         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-
-    trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
-                                            download=True, transform=transform)
-    testset = torchvision.datasets.CIFAR10(root='./data', train=False,
-                                           download=True, transform=transform)
-
-    # random split train and test
-    train_size = int(0.5 * len(trainset))
-    val_size = len(trainset) - train_size
-    generator = torch.Generator().manual_seed(42)
-    trainset, valset = torch.utils.data.random_split(trainset, [train_size, val_size], generator)
-
-    # create dataloader
-    trainloader = DataLoader(trainset, batch_size=256, shuffle=True, num_workers=2)
-    valloader = DataLoader(valset, batch_size=256, shuffle=False, num_workers=2)
-    testloader = DataLoader(testset, batch_size=256, shuffle=False, num_workers=2)
-
-    # load model (resnet18)
-    model = torchvision.models.resnet18(pretrained=True)
-
     # Verify model by GMM
     n_components = 50
     covariance_type = 'diag'
@@ -185,10 +187,16 @@ if __name__ == '__main__':
         n_components: 50
         covariance: diag
     """
-    p_value, statistic, effect_size = verify_model(model, trainloader, valloader, testloader, n_components, covariance_type)
+    pvalue, statistic, effect_size = verify_model(model, train_loader, val_loader, test_loader, n_components, covariance_type)
 
     # 結果の出力
-    print(f'p-value: {p_value}')
+    print(f'p-value: {pvalue}')
     print(f'statistic: {statistic}')
     print(f'effect-size: {effect_size}')
+
+    # save kstest result
+    wandb.log({'pvalue': pvalue, 'statistic': statistic, 'effect_size': effect_size})
+    # wandb finish
+    os.remove(os.path.join(wandb.run.dir, args.model_path))
+    wandb.finish()
 
