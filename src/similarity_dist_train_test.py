@@ -52,7 +52,8 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
             if counter > num_of_samples:
                 break
             if counter == 0:
-                seed_check(x[:,1])
+                img = [img[1] for img in x]
+                seed_check(img)
             feature_list = []
             for data in x:
                 if encoder_flag:
@@ -70,7 +71,7 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
 
             var = torch.var(torch.stack(cos_list, dim=1), dim=1)
             train_var.append(var)
-            median = torch.median(torch.stack(cos_list, dim=1), dim=1)
+            median = torch.median(torch.stack(cos_list, dim=1), dim=1)[0] # return median_type known as named_tuple
             train_median.append(median)
             result = cos_list[0]
             for i in range(1,len(cos_list)):
@@ -101,7 +102,7 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
                     cos_list.append(similarity(feature_list[i], feature_list[j]))
             var = torch.var(torch.stack(cos_list, dim=1), dim=1)
             test_var.append(var)
-            median = torch.median(torch.stack(cos_list, dim=1), dim=1)
+            median = torch.median(torch.stack(cos_list, dim=1), dim=1)[0] # return median_type known as named_tuple
             test_median.append(median)
             result = cos_list[0]
             for i in range(1,len(cos_list)):
@@ -218,6 +219,10 @@ if __name__ == '__main__':
     # initialize random seed
     utils.set_random_seed(args.seed)
 
+    # create output directory
+    if not os.path.exists('results'):
+        os.mkdir('results')
+
     # wandb init
     config = {
         "arch": "resnet34",
@@ -247,8 +252,6 @@ if __name__ == '__main__':
     memory_loader = DataLoader(memory_data, batch_size=batch_size, shuffle=shuffle, num_workers=8, pin_memory=True)
     test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=shuffle, num_workers=8, pin_memory=True)
 
-    if not os.path.exists('results'):
-        os.mkdir('results')
     # model setup and optimizer config
     model_path = ''
     if args.wandb_model_runpath != '':

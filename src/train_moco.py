@@ -7,6 +7,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import wandb
+import os
 
 import utils
 from model import Model
@@ -71,6 +72,10 @@ if __name__ == '__main__':
     feature_dim, m, temperature, momentum = args.feature_dim, args.m, args.temperature, args.momentum
     k, batch_size, epochs = args.k, args.batch_size, args.epochs
 
+    # create output directory
+    if not os.path.exists('results'):
+        os.mkdir('results')
+
     # wandb init
     config = {
         "lr": args.lr,
@@ -104,6 +109,7 @@ if __name__ == '__main__':
                                   drop_last=True)
     memory_loader = DataLoader(memory_data, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
     test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True)
+
 
     # model setup and optimizer config
     model_q = Model(feature_dim).cuda()
