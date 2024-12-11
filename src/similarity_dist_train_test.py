@@ -47,6 +47,8 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
     test_feature_bank, train_feature_bank = [], []
     test_var, train_var = [], []
     test_median, train_median = [], []
+    test_max, train_max = [], []
+    test_min, train_min = [], []
     counter = 0
     with torch.no_grad():
         # generate feature bank
@@ -76,6 +78,10 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
             train_var.append(var)
             median = torch.median(torch.stack(cos_list, dim=1), dim=1)[0] # return median_type known as named_tuple
             train_median.append(median)
+            max = torch.max(torch.stack(cos_list, dim=1), dim=1)[0]
+            train_max.append(max)
+            min = torch.min(torch.stack(cos_list, dim=1), dim=1)[0]
+            train_min.append(min)
             result = cos_list[0]
             for i in range(1,len(cos_list)):
                 result += cos_list[i]
@@ -110,6 +116,10 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
             test_var.append(var)
             median = torch.median(torch.stack(cos_list, dim=1), dim=1)[0] # return median_type known as named_tuple
             test_median.append(median)
+            max = torch.max(torch.stack(cos_list, dim=1), dim=1)[0]
+            train_max.append(max)
+            min = torch.min(torch.stack(cos_list, dim=1), dim=1)[0]
+            train_min.append(min)
             result = cos_list[0]
             for i in range(1,len(cos_list)):
                 result += cos_list[i]
@@ -125,6 +135,10 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
         test_var = torch.cat(test_var, dim=0)
         train_median = torch.cat(train_median, dim=0)
         test_median = torch.cat(test_median, dim=0)
+        train_max = torch.cat(train_max, dim=0)
+        test_max = torch.cat(test_max, dim=0)
+        train_min = torch.cat(train_min, dim=0)
+        test_min = torch.cat(test_min, dim=0)
 
     color = ['tab:blue', 'tab:orange', 'tab:green']
 
@@ -169,6 +183,30 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
     plt.savefig(f"results/var_test_train_model.png")
     plt.close()
 
+    data = [train_min[:num_of_samples].to('cpu').detach().numpy().copy(),test_min[:num_of_samples].to('cpu').detach().numpy().copy()]
+    ks_result_min = kstest(data[0], data[1], alternative='two-sided', method='auto')
+    # plt.title(f'{num_of_samples}_{ks_result.pvalue}')
+    plt.title(f'train & test Varriance distribution, {num_of_samples} samples')
+    plt.hist(data[0], 30, alpha=0.6, density=False, label=olabels[0], stacked=False, range=(0.0, 0.1), color=color[0])
+    plt.hist(data[1], 30, alpha=0.6, density=False, label=olabels[1], stacked=False, range=(0.0, 0.1), color=color[1])
+    plt.legend()
+    plt.ylabel('The number of samples')
+    plt.xlabel('Minimum')
+    plt.savefig(f"results/min_test_train_model.png")
+    plt.close()
+
+    data = [train_max[:num_of_samples].to('cpu').detach().numpy().copy(),test_max[:num_of_samples].to('cpu').detach().numpy().copy()]
+    ks_result_max = kstest(data[0], data[1], alternative='two-sided', method='auto')
+    # plt.title(f'{num_of_samples}_{ks_result.pvalue}')
+    plt.title(f'train & test Varriance distribution, {num_of_samples} samples')
+    plt.hist(data[0], 30, alpha=0.6, density=False, label=olabels[0], stacked=False, range=(0.0, 0.1), color=color[0])
+    plt.hist(data[1], 30, alpha=0.6, density=False, label=olabels[1], stacked=False, range=(0.0, 0.1), color=color[1])
+    plt.legend()
+    plt.ylabel('The number of samples')
+    plt.xlabel('Maximum')
+    plt.savefig(f"results/max_test_train_model.png")
+    plt.close()
+
     data = [train_feature_bank.to('cpu').detach().numpy().copy(),test_feature_bank.to('cpu').detach().numpy().copy()]
     ks_result_all = kstest(train_feature_bank.to('cpu').detach().numpy().copy(),test_feature_bank.to('cpu').detach().numpy().copy(), alternative='two-sided', method='auto')
     # plt.title(f'all_{ks_result_all.pvalue}')
@@ -182,23 +220,23 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
     plt.close()
 
     try:
-        train_data = [train_feature_bank[:num_of_samples].to('cpu').detach().numpy().copy(), train_var[:num_of_samples].to('cpu').detach().numpy().copy(), train_median[:num_of_samples].to('cpu').detach().numpy().copy()]
-        test_data = [test_feature_bank[:num_of_samples].to('cpu').detach().numpy().copy(), test_var[:num_of_samples].to('cpu').detach().numpy().copy(), test_median[:num_of_samples].to('cpu').detach().numpy().copy()]
+        train_data = [train_feature_bank[:num_of_samples].to('cpu').detach().numpy().copy(), train_var[:num_of_samples].to('cpu').detach().numpy().copy(), train_median[:num_of_samples].to('cpu').detach().numpy().copy(), train_min[:num_of_samples].to('cpu').detach().numpy().copy(), train_max[:num_of_samples].to('cpu').detach().numpy().copy()]
+        test_data = [test_feature_bank[:num_of_samples].to('cpu').detach().numpy().copy(), test_var[:num_of_samples].to('cpu').detach().numpy().copy(), test_median[:num_of_samples].to('cpu').detach().numpy().copy(), train_min[:num_of_samples].to('cpu').detach().numpy().copy(), train_max[:num_of_samples].to('cpu').detach().numpy().copy()]
         with open(f'results/sim_train.csv', 'w') as f:
             writer = csv.writer(f)
-            writer.writerow(['similarity', 'variance', 'median'])
-            for d1, d2, d3 in zip(train_data[0], train_data[1], train_data[2]):
-                writer.writerow([d1, d2, d3])
+            writer.writerow(['similarity', 'variance', 'median', 'min', 'max'])
+            for d1, d2, d3, d4, d5 in zip(train_data[0], train_data[1], train_data[2], train_data[3], train_data[4]):
+                writer.writerow([d1, d2, d3, d4, d5])
         with open(f'results/sim_test.csv', 'w') as f:
             writer = csv.writer(f)
-            writer.writerow(['similarity', 'variance', 'median'])
-            for d1, d2, d3 in zip(test_data[0], test_data[1], test_data[2]):
-                writer.writerow([d1, d2, d3])
+            writer.writerow(['similarity', 'variance', 'median', 'min', 'max'])
+            for d1, d2, d3, d4, d5 in zip(test_data[0], test_data[1], test_data[2], test_data[3], test_data[4]):
+                writer.writerow([d1, d2, d3, d4, d5])
     except:
         import traceback
         traceback.print_exc()
 
-    return ks_result.pvalue, ks_result.statistic, ks_result_var.pvalue, ks_result_var.statistic, ks_result_median.pvalue, ks_result_median.statistic
+    return ks_result.pvalue, ks_result.statistic, ks_result_var.pvalue, ks_result_var.statistic, ks_result_median.pvalue, ks_result_median.statistic, ks_result_min.pvalue, ks_result_min.statistic, ks_result_max.pvalue, ks_result_max.statistic
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train MoCo')
@@ -287,11 +325,11 @@ if __name__ == '__main__':
     # Seed is set after the model is defined because random initialization of the model weights is entered
     utils.set_random_seed(args.seed)
 
-    pvalue, statistic, var_pvalue, var_statistic, med_pvalue, med_statistic = sim(model, memory_loader, test_loader, num_of_samples=args.num_of_samples, encoder_flag=args.is_encoder, device=device)
+    pvalue, statistic, var_pvalue, var_statistic, med_pvalue, med_statistic, min_pvalue, min_statistic, max_pvalue, max_statistic = sim(model, memory_loader, test_loader, num_of_samples=args.num_of_samples, encoder_flag=args.is_encoder, device=device)
     # sim(model_q, memory_loader, memory_loader)
 
     # save kstest result
-    wandb.log({'pvalue': pvalue, 'statistic': statistic, 'var_pvalue': var_pvalue, 'var_statistic': var_statistic, 'med_pvalue': med_pvalue, 'med_statistic': med_statistic})
+    wandb.log({'pvalue': pvalue, 'statistic': statistic, 'var_pvalue': var_pvalue, 'var_statistic': var_statistic, 'med_pvalue': med_pvalue, 'med_statistic': med_statistic, 'min_pvalue': min_pvalue, 'min_statistic': min_statistic, 'max_pvalue': max_pvalue, 'max_statistic': max_statistic})
 
     # wandb finish
     os.remove(os.path.join(wandb.run.dir, args.model_path))
