@@ -34,7 +34,7 @@ def verify_model(model, trainloader, valloader, testloader, n_components: int=50
 
     device = 'cuda'
     with torch.no_grad():
-        for data in trainloader:
+        for data in tqdm(trainloader):
             images, _ = data
             # representations = model(images)
             if encoder_flag:
@@ -43,7 +43,7 @@ def verify_model(model, trainloader, valloader, testloader, n_components: int=50
                 representations = model(images.to(device, non_blocking=True))
             train_representations.append(representations)
 
-        for data in valloader:
+        for data in tqdm(valloader):
             images, _ = data
             # representations = model(images)
             if encoder_flag:
@@ -52,7 +52,7 @@ def verify_model(model, trainloader, valloader, testloader, n_components: int=50
                 representations = model(images.to(device, non_blocking=True))
             val_representations.append(representations)
 
-        for data in testloader:
+        for data in tqdm(testloader):
             images, _ = data
             # representations = model(images)
             if encoder_flag:
@@ -61,9 +61,9 @@ def verify_model(model, trainloader, valloader, testloader, n_components: int=50
                 representations = model(images.to(device, non_blocking=True))
             test_representations.append(representations)
 
-    train_representations = torch.cat(train_representations).contiguous().numpy()
-    val_representations = torch.cat(val_representations).contiguous().numpy()
-    test_representations = torch.cat(test_representations).contiguous().numpy()
+    train_representations = torch.cat(train_representations).contiguous().cpu().numpy()
+    val_representations = torch.cat(val_representations).contiguous().cpu().numpy()
+    test_representations = torch.cat(test_representations).contiguous().cpu().numpy()
 
     # create density estimator (Gaussian Mixture Model)
     gmm = GaussianMixture(n_components=n_components, covariance_type=covariance)
@@ -187,7 +187,7 @@ if __name__ == '__main__':
         n_components: 50
         covariance: diag
     """
-    pvalue, statistic, effect_size = verify_model(model, train_loader, val_loader, test_loader, n_components, covariance_type)
+    pvalue, statistic, effect_size = verify_model(model, train_loader, val_loader, test_loader, n_components, covariance_type, args.is_encoder)
 
     # 結果の出力
     print(f'p-value: {pvalue}')
