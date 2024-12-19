@@ -2,7 +2,7 @@ import argparse
 import os
 import random
 import csv
-from scipy.stats import kstest, mannwhitneyu
+from scipy.stats import kstest, mannwhitneyu, anderson_ksamp
 
 import torch
 from torch.utils.data import DataLoader
@@ -41,10 +41,14 @@ def seed_check(img, is_train: bool = True):
         fig.savefig('results/seed_check_test.png')
     plt.close()
 
-def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, encoder_flag:bool=True, device:str='cuda'):
+def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, encoder_flag:bool=True, device:str='cuda', method: str='kstest'):
     model.eval()
-    test_method = kstest
-    # test_method = mannwhitneyu
+    if method == 'mannwhitneyu':
+        test_method = mannwhitneyu
+    elif method == 'anderson':
+        test_method = lambda x, y, alternative, method: anderson_ksamp([x,y], midrank=True, method=None)
+    else:
+        test_method = kstest
     similarity = torch.nn.CosineSimilarity(dim=1)
     test_feature_bank, train_feature_bank = [], []
     test_cos_list, train_cos_list = [], []
