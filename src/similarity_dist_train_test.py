@@ -83,25 +83,9 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
                         continue
                     cos_list.append(similarity(feature_list[i], feature_list[j]))
 
-            var = torch.var(torch.stack(cos_list, dim=1), dim=1)
-            train_var.append(var)
-            median = torch.median(torch.stack(cos_list, dim=1), dim=1)[0] # return median_type known as named_tuple
-            train_median.append(median)
-            max = torch.max(torch.stack(cos_list, dim=1), dim=1)[0]
-            train_max.append(max)
-            min = torch.min(torch.stack(cos_list, dim=1), dim=1)[0]
-            train_min.append(min)
-
-            # mean = cos_list[0]
-            # for i in range(1,len(cos_list)):
-                # mean += cos_list[i]
-            # mean /= len(cos_list)
-            mean = torch.mean(torch.stack(cos_list, dim=1), dim=1)
-            train_mean.append(mean)
-
             train_feature_bank.append(torch.stack(feature_list, dim=1))
             train_cos_list.append(torch.stack(cos_list, dim=1))
-            counter += len(mean)
+            counter += len(x[0])
 
         counter=0
         for x, target in tqdm(test_data_loader, desc='Feature extracting'):
@@ -125,41 +109,16 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
                     if i >= j:
                         continue
                     cos_list.append(similarity(feature_list[i], feature_list[j]))
-            var = torch.var(torch.stack(cos_list, dim=1), dim=1)
-            test_var.append(var)
-            median = torch.median(torch.stack(cos_list, dim=1), dim=1)[0] # return median_type known as named_tuple
-            test_median.append(median)
-            max = torch.max(torch.stack(cos_list, dim=1), dim=1)[0]
-            test_max.append(max)
-            min = torch.min(torch.stack(cos_list, dim=1), dim=1)[0]
-            test_min.append(min)
-
-            # result = cos_list[0]
-            # for i in range(1,len(cos_list)):
-                # result += cos_list[i]
-            # result /= len(cos_list)
-            mean = torch.mean(torch.stack(cos_list, dim=1), dim=1)
-            test_mean.append(mean)
 
             test_feature_bank.append(torch.stack(feature_list, dim=1))
             test_cos_list.append(torch.stack(cos_list, dim=1))
-            counter += len(mean)
+            counter += len(x[0])
 
         # [D, N]
         train_cos_list = torch.cat(train_cos_list, dim=0).contiguous()
         test_cos_list = torch.cat(test_cos_list, dim=0).contiguous()
         train_feature_bank = torch.cat(train_feature_bank, dim=0).contiguous()
         test_feature_bank = torch.cat(test_feature_bank, dim=0).contiguous()
-        # train_mean = torch.cat(train_mean, dim=0).contiguous()
-        # test_mean = torch.cat(test_mean, dim=0).contiguous()
-        # train_var = torch.cat(train_var, dim=0)
-        # test_var = torch.cat(test_var, dim=0)
-        # train_median = torch.cat(train_median, dim=0)
-        # test_median = torch.cat(test_median, dim=0)
-        # train_max = torch.cat(train_max, dim=0)
-        # test_max = torch.cat(test_max, dim=0)
-        # train_min = torch.cat(train_min, dim=0)
-        # test_min = torch.cat(test_min, dim=0)
 
         train_mean = torch.mean(train_cos_list, dim=1)
         test_mean = torch.mean(test_cos_list, dim=1)
@@ -180,7 +139,6 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
     # data = [train_mean[train_random_sampling].to('cpu').detach().numpy().copy(),test_mean[test_random_sampling].to('cpu').detach().numpy().copy()]
     data = [train_mean[:num_of_samples].to('cpu').detach().numpy().copy(),test_mean[:num_of_samples].to('cpu').detach().numpy().copy()]
     ks_result = test_method(data[0], data[1], alternative='two-sided', method='auto')
-    # plt.title(f'{num_of_samples}_{ks_result.pvalue}')
     plt.title(f'train & test similarity distribution, {num_of_samples} samples')
     plt.hist(data[0], 30, alpha=0.6, density=False, label=olabels[0], stacked=False, range=(0.4, 1.0), color=color[0])
     plt.hist(data[1], 30, alpha=0.6, density=False, label=olabels[1], stacked=False, range=(0.4, 1.0), color=color[1])
@@ -190,11 +148,13 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
     plt.savefig(f"results/sim_test_train_model.png")
     plt.close()
 
+    get_n_similarity = lambda n, train_data, test_data, num_of_samples: [ torch.mean(train_data[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy(), torch.mean(test_data[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy() ]
     n = 2
     data = [
             torch.mean(train_cos_list[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy(),
             torch.mean(test_cos_list[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy()
     ]
+    data = get_n_similarity(n, train_cos_list, test_cos_list, num_of_samples)
     ks_result_2 = test_method(data[0], data[1], alternative='two-sided', method='auto')
     # plt.title(f'{num_of_samples}_{ks_result.pvalue}')
     plt.title(f'train & test similarity distribution, {num_of_samples} samples')
@@ -211,6 +171,7 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
             torch.mean(train_cos_list[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy(),
             torch.mean(test_cos_list[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy()
     ]
+    data = get_n_similarity(n, train_cos_list, test_cos_list, num_of_samples)
     ks_result_3 = test_method(data[0], data[1], alternative='two-sided', method='auto')
     # plt.title(f'{num_of_samples}_{ks_result.pvalue}')
     plt.title(f'train & test similarity distribution, {num_of_samples} samples')
@@ -227,6 +188,7 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
             torch.mean(train_cos_list[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy(),
             torch.mean(test_cos_list[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy()
     ]
+    data = get_n_similarity(n, train_cos_list, test_cos_list, num_of_samples)
     ks_result_5 = test_method(data[0], data[1], alternative='two-sided', method='auto')
     # plt.title(f'{num_of_samples}_{ks_result.pvalue}')
     plt.title(f'train & test similarity distribution, {num_of_samples} samples')
