@@ -27,7 +27,7 @@ def distill(student: nn.Module, teacher: nn.Module, data_loader, train_optimizer
             output_student = student(data)
 
             with torch.no_grad():
-                output_teacher = nn.functional.softmax(teacher(data)/temperature).detach()
+                output_teacher = nn.functional.softmax(teacher(data)/temperature, dim=1).detach()
             loss_distill = loss_criterion(output_student/temperature, output_teacher) * temperature * temperature
 
             if use_label:
