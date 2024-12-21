@@ -73,7 +73,7 @@ def verify_model(model, trainloader, valloader, testloader, n_components: int=50
     test_log_likelihood = gmm.score_samples(test_representations)
 
     # verify by t-test
-    t_statistic, p_value = ttest_ind(val_log_likelihood, test_log_likelihood)
+    t_statistic, p_value = ttest_ind(val_log_likelihood, test_log_likelihood, equal_var=False) # Welch's t-test
     effect_size = (np.mean(val_log_likelihood) - np.mean(test_log_likelihood)) / np.std(test_log_likelihood)
 
     return p_value, t_statistic, effect_size
@@ -125,20 +125,19 @@ if __name__ == '__main__':
 
     # data prepare
     if args.dataset == 'stl10':
-        train_data = utils.STL10NAug(root='data', split='unlabeled', transform=utils.stl_train_transform, download=True)
-        train_data.set_mia_train_dataset_flag(True)
-        test_data = utils.STL10NAug(root='data', split='unlabeled', transform=utils.stl_train_transform, download=True)
-        test_data.set_mia_train_dataset_flag(False)
+        unlabeled_data = torchvision.datasets.STL10(root='data', split='unlabeled', transform=utils.stl_test_transform, download=True)
+        train_data = torch.utils.data.Subset(unlabeled_data, range(len(unlabeled_data)//2))
+        test_data = torch.utils.data.Subset(unlabeled_data, range(len(unlabeled_data)//2, len(unlabeled_data)))
     elif args.dataset == 'cifar10':
-        # train_data = utils.CIFAR10NAug(root='data', train=True, transform=utils.train_transform, download=True, n=10)
-        # test_data = utils.CIFAR10NAug(root='data', train=False, transform=utils.train_transform, download=True, n=10)
-        train_data = torchvision.datasets.CIFAR10(root='data', train=True, transform=utils.train_transform, download=True)
-        test_data = torchvision.datasets.CIFAR10(root='data', train=False, transform=utils.train_transform, download=True)
+        # train_data = utils.CIFAR10NAug(root='data', train=True, transform=utils.test_transform, download=True, n=10)
+        # test_data = utils.CIFAR10NAug(root='data', train=False, transform=utils.test_transform, download=True, n=10)
+        train_data = torchvision.datasets.CIFAR10(root='data', train=True, transform=utils.test_transform, download=True)
+        test_data = torchvision.datasets.CIFAR10(root='data', train=False, transform=utils.test_transform, download=True)
     else:
-        # train_data = utils.CIFAR100NAug(root='data', train=True, transform=utils.train_transform, download=True, n=10)
-        # test_data = utils.CIFAR100NAug(root='data', train=False, transform=utils.train_transform, download=True, n=10)
-        train_data = torchvision.datasets.CIFAR100(root='data', train=True, transform=utils.train_transform, download=True)
-        test_data = torchvision.datasets.CIFAR100(root='data', train=False, transform=utils.train_transform, download=True)
+        # train_data = utils.CIFAR100NAug(root='data', train=True, transform=utils.test_transform, download=True, n=10)
+        # test_data = utils.CIFAR100NAug(root='data', train=False, transform=utils.test_transform, download=True, n=10)
+        train_data = torchvision.datasets.CIFAR100(root='data', train=True, transform=utils.test_transform, download=True)
+        test_data = torchvision.datasets.CIFAR100(root='data', train=False, transform=utils.test_transform, download=True)
 
     # random split train and test
     train_size = int(0.5 * len(train_data))
