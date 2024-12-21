@@ -17,7 +17,7 @@ import utils
 from model import Model, Classifier, StudentModel
 from quantize import load_quantize_model
 
-def verify_model(model, trainloader, valloader, testloader, n_components: int=50, covariance: str='diag', encoder_flag: bool = True):
+def verify_model(model, trainloader, valloader, testloader, n_components: int=50, covariance: str='diag', encoder_flag: bool = True, device='cuda'):
     """
     Dataset Inference
     Returns:
@@ -32,7 +32,6 @@ def verify_model(model, trainloader, valloader, testloader, n_components: int=50
     val_representations = []
     test_representations = []
 
-    device = 'cuda'
     with torch.no_grad():
         for data in tqdm(trainloader):
             images, _ = data
@@ -96,6 +95,8 @@ if __name__ == '__main__':
     parser.add_argument('--is_modification', action='store_true', help='is model modificated?')
     parser.add_argument('--model_modification_method', default='', type=str, help='is is_modification, specify model modification method(e.g. quant, prune, distill)')
     parser.add_argument('--use_thop', action='store_true', help='is loaded model using thop?')
+    parser.add_argument('--num_of_components', default=50, type=int, help='number of gmm components')
+    parser.add_argument('--covariance_type', default='diag', type=str, help='covariance type of gmm')
 
     # args parse
     args = parser.parse_args()
@@ -117,6 +118,8 @@ if __name__ == '__main__':
         "is_encoder": args.is_encoder,
         "is_modification": args.is_modification,
         "modification_method": args.model_modification_method,
+        "components": args.num_of_components,
+        "covariance": args.covariance_type,
     }
     wandb.init(project=args.wandb_project, name=args.wandb_run, config=config)
 
@@ -177,8 +180,8 @@ if __name__ == '__main__':
 
 
     # Verify model by GMM
-    n_components = 50
-    covariance_type = 'diag'
+    n_components = args.num_of_components
+    covariance_type = args.covariance_type
     """
     Classifier:
         n_components: 10
@@ -187,7 +190,7 @@ if __name__ == '__main__':
         n_components: 50
         covariance: diag
     """
-    pvalue, statistic, effect_size = verify_model(model, train_loader, val_loader, test_loader, n_components, covariance_type, args.is_encoder)
+    pvalue, statistic, effect_size = verify_model(model, train_loader, val_loader, test_loader, n_components, covariance_type, args.is_encoder, device)
 
     # 結果の出力
     print(f'p-value: {pvalue}')
