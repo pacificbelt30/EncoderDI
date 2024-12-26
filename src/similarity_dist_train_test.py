@@ -46,15 +46,66 @@ def seed_check(imgs, is_train: bool = True):
         fig.savefig('results/seed_check_test.png')
     plt.close()
 
+def extract_features(model, data_loader, encoder_flag:bool=True, is_train:bool=True, device:str='cuda'):
+    model.eval()
+    feature_bank = []
+    cos_list_bank = []
+    similarity = torch.nn.CosineSimilarity(dim=1)
+    is_first_iter = True
+
+    with torch.no_grad():
+        for x, target in tqdm(data_loader, desc='Feature extracting'):
+            target = target.to(device)
+            if is_first_iter:
+                imgs = [img[0] for img in x], [img[1] for img in x], [img[2] for img in x]
+                seed_check(imgs, is_train)
+                is_first_iter = False
+
+            feature_list = []
+            for data in x:
+                if encoder_flag:
+                    f, _ = model(data.to(device, non_blocking=True))
+                else:
+                    f = model(data.to(device, non_blocking=True))
+                feature_list.append(f)
+
+            cos_list = []
+            for j in range(len(x)):
+                for i in range(len(x)):
+                    if i >= j:
+                        continue
+                    cos_list.append(similarity(feature_list[i], feature_list[j]))
+
+            feature_bank.append(torch.stack(feature_list, dim=1))
+            cos_list_bank.append(torch.stack(cos_list, dim=1))
+
+    return feature_bank, cos_list_bank
+
+def plot_histogram(data, labels, xlabel, ylabel, title, filename, color, range):
+    plt.hist(data[0], 30, alpha=0.6, density=False, label=labels[0], stacked=False, range=range, color=color[0])
+    plt.hist(data[1], 30, alpha=0.6, density=False, label=labels[1], stacked=False, range=range, color=color[1])
+    plt.legend()
+    plt.ylabel(ylabel)
+    plt.xlabel(xlabel)
+    plt.title(title)
+    plt.savefig(filename)
+    plt.close()
+
+def get_similarity_data(n, train_data, test_data, num_of_samples):
+    return [
+        torch.mean(train_data[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy(),
+        torch.mean(test_data[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy()
+    ]
+
 def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, encoder_flag:bool=True, device:str='cuda', method: str='kstest'):
     model.eval()
     if method == 'mannwhitneyu':
-        test_method = mannwhitneyu
+        test_method = lambda x, y: mannwhitneyu(x, y, alternative='two-sided')
     elif method == 'anderson':
-        test_method = lambda x, y, alternative, method: anderson_ksamp([x,y], midrank=True, method=None)
+        test_method = lambda x, y: anderson_ksamp([x,y], midrank=True, method=None)
     else:
-        test_method = kstest
-    similarity = torch.nn.CosineSimilarity(dim=1)
+        test_method = lambda x, y: kstest(x, y, alternative='two-sided', method='auto')
+    # similarity = torch.nn.CosineSimilarity(dim=1)
     test_feature_bank, train_feature_bank = [], []
     test_cos_list, train_cos_list = [], []
     test_mean, train_mean = [], []
@@ -62,64 +113,11 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
     test_median, train_median = [], []
     test_max, train_max = [], []
     test_min, train_min = [], []
-    counter = 0
 
     with torch.no_grad():
         # generate feature bank
-        for x, target in tqdm(memory_data_loader, desc='Feature extracting'):
-            target = target.to(device)
-            if counter > num_of_samples:
-                break
-            if counter == 0:
-                # img = [img[1] for img in x]
-                imgs = [img[0] for img in x],[img[1] for img in x],[img[2] for img in x]
-                seed_check(imgs, True)
-            feature_list = []
-            for data in x:
-                if encoder_flag:
-                    f, _ = model(data.to(device, non_blocking=True))
-                else:
-                    f = model(data.to(device, non_blocking=True))
-                feature_list.append(f)
-
-            cos_list = []
-            for j in range(len(x)):
-                for i in range(len(x)):
-                    if i >= j:
-                        continue
-                    cos_list.append(similarity(feature_list[i], feature_list[j]))
-
-            train_feature_bank.append(torch.stack(feature_list, dim=1))
-            train_cos_list.append(torch.stack(cos_list, dim=1))
-            counter += len(x[0])
-
-        counter=0
-        for x, target in tqdm(test_data_loader, desc='Feature extracting'):
-            target = target.to(device)
-            if counter > num_of_samples:
-                break
-            if counter == 0:
-                # img = [img[1] for img in x]
-                imgs = [img[0] for img in x],[img[1] for img in x],[img[2] for img in x]
-                seed_check(imgs, False)
-            feature_list = []
-            for data in x:
-                if encoder_flag:
-                    f, _ = model(data.to(device, non_blocking=True))
-                else:
-                    f = model(data.to(device, non_blocking=True))
-                feature_list.append(f)
-
-            cos_list = []
-            for j in range(len(x)):
-                for i in range(len(x)):
-                    if i >= j:
-                        continue
-                    cos_list.append(similarity(feature_list[i], feature_list[j]))
-
-            test_feature_bank.append(torch.stack(feature_list, dim=1))
-            test_cos_list.append(torch.stack(cos_list, dim=1))
-            counter += len(x[0])
+        train_feature_bank, train_cos_list = extract_features(model, memory_data_loader, encoder_flag, True, device)
+        test_feature_bank, test_cos_list = extract_features(model, test_data_loader, encoder_flag, False, device)
 
         # [D, N]
         train_cos_list = torch.cat(train_cos_list, dim=0).contiguous()
@@ -145,128 +143,39 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
     olabels = ['train', 'test']
     # data = [train_mean[train_random_sampling].to('cpu').detach().numpy().copy(),test_mean[test_random_sampling].to('cpu').detach().numpy().copy()]
     data = [train_mean[:num_of_samples].to('cpu').detach().numpy().copy(),test_mean[:num_of_samples].to('cpu').detach().numpy().copy()]
-    ks_result = test_method(data[0], data[1], alternative='two-sided', method='auto')
-    plt.title(f'train & test similarity distribution, {num_of_samples} samples')
-    plt.hist(data[0], 30, alpha=0.6, density=False, label=olabels[0], stacked=False, range=(0.4, 1.0), color=color[0])
-    plt.hist(data[1], 30, alpha=0.6, density=False, label=olabels[1], stacked=False, range=(0.4, 1.0), color=color[1])
-    plt.legend()
-    plt.ylabel('The number of samples')
-    plt.xlabel('Mean Cosine Similarity')
-    plt.savefig(f"results/sim_test_train_model.png")
-    plt.close()
+    ks_result = test_method(data[0], data[1])
+    plot_histogram(data, olabels, 'Mean Cosine Similarity', 'The number of samples', f'train & test similarity distribution, {num_of_samples} samples', "results/sim_test_train_model.png", color, (0.4, 1.0))
 
-    get_n_similarity = lambda n, train_data, test_data, num_of_samples: [ torch.mean(train_data[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy(), torch.mean(test_data[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy() ]
-    n = 2
-    data = [
-            torch.mean(train_cos_list[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy(),
-            torch.mean(test_cos_list[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy()
-    ]
-    data = get_n_similarity(n, train_cos_list, test_cos_list, num_of_samples)
-    ks_result_2 = test_method(data[0], data[1], alternative='two-sided', method='auto')
-    # plt.title(f'{num_of_samples}_{ks_result.pvalue}')
-    plt.title(f'train & test similarity distribution, {num_of_samples} samples')
-    plt.hist(data[0], 30, alpha=0.6, density=False, label=olabels[0], stacked=False, range=(0.4, 1.0), color=color[0])
-    plt.hist(data[1], 30, alpha=0.6, density=False, label=olabels[1], stacked=False, range=(0.4, 1.0), color=color[1])
-    plt.legend()
-    plt.ylabel('The number of samples')
-    plt.xlabel('Mean Cosine Similarity')
-    plt.savefig(f"results/sim_test_train_model_(n={n}).png")
-    plt.close()
+    # Different n values
+    for n in [2, 3, 5]:
+        data = get_similarity_data(n, train_cos_list, test_cos_list, num_of_samples)
+        plot_histogram(data, olabels, 'Mean Cosine Similarity', 'The number of samples', f'train & test similarity distribution, {num_of_samples} samples', f"results/sim_test_train_model_(n={n}).png", color, (0.4, 1.0))
 
-    n = 3
-    data = [
-            torch.mean(train_cos_list[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy(),
-            torch.mean(test_cos_list[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy()
-    ]
-    data = get_n_similarity(n, train_cos_list, test_cos_list, num_of_samples)
-    ks_result_3 = test_method(data[0], data[1], alternative='two-sided', method='auto')
-    # plt.title(f'{num_of_samples}_{ks_result.pvalue}')
-    plt.title(f'train & test similarity distribution, {num_of_samples} samples')
-    plt.hist(data[0], 30, alpha=0.6, density=False, label=olabels[0], stacked=False, range=(0.4, 1.0), color=color[0])
-    plt.hist(data[1], 30, alpha=0.6, density=False, label=olabels[1], stacked=False, range=(0.4, 1.0), color=color[1])
-    plt.legend()
-    plt.ylabel('The number of samples')
-    plt.xlabel('Mean Cosine Similarity')
-    plt.savefig(f"results/sim_test_train_model_(n={n}).png")
-    plt.close()
-
-    n = 5
-    data = [
-            torch.mean(train_cos_list[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy(),
-            torch.mean(test_cos_list[:, :n*(n-1)//2], dim=1)[:num_of_samples].to('cpu').detach().numpy().copy()
-    ]
-    data = get_n_similarity(n, train_cos_list, test_cos_list, num_of_samples)
-    ks_result_5 = test_method(data[0], data[1], alternative='two-sided', method='auto')
-    # plt.title(f'{num_of_samples}_{ks_result.pvalue}')
-    plt.title(f'train & test similarity distribution, {num_of_samples} samples')
-    plt.hist(data[0], 30, alpha=0.6, density=False, label=olabels[0], stacked=False, range=(0.4, 1.0), color=color[0])
-    plt.hist(data[1], 30, alpha=0.6, density=False, label=olabels[1], stacked=False, range=(0.4, 1.0), color=color[1])
-    plt.legend()
-    plt.ylabel('The number of samples')
-    plt.xlabel('Mean Cosine Similarity')
-    plt.savefig(f"results/sim_test_train_model_(n={n}).png")
-    plt.close()
-
-    # data = [train_mean[train_random_sampling].to('cpu').detach().numpy().copy(),test_mean[test_random_sampling].to('cpu').detach().numpy().copy()]
+    # Median Cosine Similarity
     data = [train_median[:num_of_samples].to('cpu').detach().numpy().copy(),test_median[:num_of_samples].to('cpu').detach().numpy().copy()]
-    ks_result_median = test_method(data[0], data[1], alternative='two-sided', method='auto')
-    # plt.title(f'{num_of_samples}_{ks_result.pvalue}')
-    plt.title(f'train & test similarity distribution, {num_of_samples} samples')
-    plt.hist(data[0], 30, alpha=0.6, density=False, label=olabels[0], stacked=False, range=(0.4, 1.0), color=color[0])
-    plt.hist(data[1], 30, alpha=0.6, density=False, label=olabels[1], stacked=False, range=(0.4, 1.0), color=color[1])
-    plt.legend()
-    plt.ylabel('The number of samples')
-    plt.xlabel('Median Cosine Similarity')
-    plt.savefig(f"results/median_test_train_model.png")
-    plt.close()
+    ks_result_median = test_method(data[0], data[1])
+    data = [train_median[:num_of_samples].to('cpu').detach().numpy().copy(), test_median[:num_of_samples].to('cpu').detach().numpy().copy()]
+    plot_histogram(data, olabels, 'Median Cosine Similarity', 'The number of samples', f'train & test similarity distribution, {num_of_samples} samples', "results/median_test_train_model.png", color, (0.4, 1.0))
 
+    # Variance
     data = [train_var[:num_of_samples].to('cpu').detach().numpy().copy(),test_var[:num_of_samples].to('cpu').detach().numpy().copy()]
-    ks_result_var = test_method(data[0], data[1], alternative='two-sided', method='auto')
-    # plt.title(f'{num_of_samples}_{ks_result.pvalue}')
-    plt.title(f'train & test Varriance distribution, {num_of_samples} samples')
-    plt.hist(data[0], 30, alpha=0.6, density=False, label=olabels[0], stacked=False, range=(0.0, 0.1), color=color[0])
-    plt.hist(data[1], 30, alpha=0.6, density=False, label=olabels[1], stacked=False, range=(0.0, 0.1), color=color[1])
-    plt.legend()
-    plt.ylabel('The number of samples')
-    plt.xlabel('Variance')
-    plt.savefig(f"results/var_test_train_model.png")
-    plt.close()
+    ks_result_var = test_method(data[0], data[1])
+    plot_histogram(data, olabels, 'Variance', 'The number of samples', f'train & test Variance distribution, {num_of_samples} samples', "results/var_test_train_model.png", color, (0.0, 0.1))
 
-    data = [train_min[:num_of_samples].to('cpu').detach().numpy().copy(),test_min[:num_of_samples].to('cpu').detach().numpy().copy()]
-    ks_result_min = test_method(data[0], data[1], alternative='two-sided', method='auto')
-    # plt.title(f'{num_of_samples}_{ks_result.pvalue}')
-    plt.title(f'train & test Varriance distribution, {num_of_samples} samples')
-    plt.hist(data[0], 30, alpha=0.6, density=False, label=olabels[0], stacked=False, range=(0.4, 1.0), color=color[0])
-    plt.hist(data[1], 30, alpha=0.6, density=False, label=olabels[1], stacked=False, range=(0.4, 1.0), color=color[1])
-    plt.legend()
-    plt.ylabel('The number of samples')
-    plt.xlabel('Minimum')
-    plt.savefig(f"results/min_test_train_model.png")
-    plt.close()
+    # Minimum Cosine Similarity
+    data = [train_min[:num_of_samples].to('cpu').detach().numpy().copy(), test_min[:num_of_samples].to('cpu').detach().numpy().copy()]
+    ks_result_min = test_method(data[0], data[1])
+    plot_histogram(data, olabels, 'Minimum', 'The number of samples', f'train & test Minimum distribution, {num_of_samples} samples', "results/min_test_train_model.png", color, (0.4, 1.0))
 
-    data = [train_max[:num_of_samples].to('cpu').detach().numpy().copy(),test_max[:num_of_samples].to('cpu').detach().numpy().copy()]
-    ks_result_max = test_method(data[0], data[1], alternative='two-sided', method='auto')
-    # plt.title(f'{num_of_samples}_{ks_result.pvalue}')
-    plt.title(f'train & test Varriance distribution, {num_of_samples} samples')
-    plt.hist(data[0], 30, alpha=0.6, density=False, label=olabels[0], stacked=False, range=(0.4, 1.0), color=color[0])
-    plt.hist(data[1], 30, alpha=0.6, density=False, label=olabels[1], stacked=False, range=(0.4, 1.0), color=color[1])
-    plt.legend()
-    plt.ylabel('The number of samples')
-    plt.xlabel('Maximum')
-    plt.savefig(f"results/max_test_train_model.png")
-    plt.close()
+    # Maximum Cosine Similarity
+    data = [train_max[:num_of_samples].to('cpu').detach().numpy().copy(), test_max[:num_of_samples].to('cpu').detach().numpy().copy()]
+    ks_result_max = test_method(data[0], data[1])
+    plot_histogram(data, olabels, 'Maximum', 'The number of samples', f'train & test Maximum distribution, {num_of_samples} samples', "results/max_test_train_model.png", color, (0.4, 1.0))
 
-    data = [train_mean.to('cpu').detach().numpy().copy(),test_mean.to('cpu').detach().numpy().copy()]
-    ks_result_all = test_method(train_mean.to('cpu').detach().numpy().copy(),test_mean.to('cpu').detach().numpy().copy(), alternative='two-sided', method='auto')
-    # plt.title(f'all_{ks_result_all.pvalue}')
-    plt.title(f'train & test similarity distribution, {num_of_samples} samples, {ks_result_all.pvalue}')
-    plt.hist(data[0], 30, alpha=0.6, density=False, label=olabels[0], stacked=False, range=(0.4, 1.0), color=color[0])
-    plt.hist(data[1], 30, alpha=0.6, density=False, label=olabels[1], stacked=False, range=(0.4, 1.0), color=color[1])
-    plt.legend()
-    plt.ylabel('The number of samples')
-    plt.xlabel('Mean Cosine Similarity')
-    plt.savefig("results/sim_test_train_model_all.png")
-    plt.close()
+    # All data
+    data = [train_mean.to('cpu').detach().numpy().copy(), test_mean.to('cpu').detach().numpy().copy()]
+    ks_result_all = test_method(data[0], data[1])
+    plot_histogram(data, olabels, 'Mean Cosine Similarity', 'The number of samples', f'train & test similarity distribution, {num_of_samples} samples, {ks_result_all.pvalue}', "results/sim_test_train_model_all.png", color, (0.4, 1.0))
 
     try:
         train_data = [
@@ -297,6 +206,20 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
             # for d1, d2, d3, d4, d5, d6 in zip(test_data[0], test_data[1], test_data[2], test_data[3], test_data[4], test_data[5]):
             for d1, d2, d3, d4, d5, d6 in zip(*test_data):
                 writer.writerow([d1, d2, d3, d4, d5])
+        with open(f'results/sim_train_raw.csv', 'w') as f:
+            # datas = train_cos_list[:num_of_samples].to('cpu').detach().numpy().copy()
+            datas = train_cos_list.to('cpu').detach().numpy().copy()
+            writer = csv.writer(f)
+            writer.writerow([d for d in range(len(data[0]))])
+            for data in datas:
+                writer.writerow([d for d in data])
+        with open(f'results/sim_test_raw.csv', 'w') as f:
+            # datas = test_cos_list[:num_of_samples].to('cpu').detach().numpy().copy()
+            datas = test_cos_list.to('cpu').detach().numpy().copy()
+            writer = csv.writer(f)
+            writer.writerow([d for d in range(len(data[0]))])
+            for data in datas:
+                writer.writerow([d for d in data])
     except:
         import traceback
         traceback.print_exc()
@@ -422,6 +345,8 @@ if __name__ == '__main__':
     wandb.save("results/sim_test_train_model_all.png")
     wandb.save("results/sim_train.csv")
     wandb.save("results/sim_test.csv")
+    wandb.save("results/sim_train_raw.csv")
+    wandb.save("results/sim_test_raw.csv")
     wandb.finish()
 
 
