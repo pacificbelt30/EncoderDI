@@ -106,13 +106,6 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
     else:
         test_method = lambda x, y: kstest(x, y, alternative='two-sided', method='auto')
     # similarity = torch.nn.CosineSimilarity(dim=1)
-    test_feature_bank, train_feature_bank = [], []
-    test_cos_list, train_cos_list = [], []
-    test_mean, train_mean = [], []
-    test_var, train_var = [], []
-    test_median, train_median = [], []
-    test_max, train_max = [], []
-    test_min, train_min = [], []
 
     with torch.no_grad():
         # generate feature bank
@@ -147,8 +140,10 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
     plot_histogram(data, olabels, 'Mean Cosine Similarity', 'The number of samples', f'train & test similarity distribution, {num_of_samples} samples', "results/sim_test_train_model.png", color, (0.4, 1.0))
 
     # Different n values
+    ks_result_n = []
     for n in [2, 3, 5]:
         data = get_similarity_data(n, train_cos_list, test_cos_list, num_of_samples)
+        ks_result_n.append(test_method(data[0], data[1]))
         plot_histogram(data, olabels, 'Mean Cosine Similarity', 'The number of samples', f'train & test similarity distribution, {num_of_samples} samples', f"results/sim_test_train_model_(n={n}).png", color, (0.4, 1.0))
 
     # Median Cosine Similarity
@@ -197,34 +192,41 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
         with open(f'results/sim_train.csv', 'w') as f:
             writer = csv.writer(f)
             writer.writerow(['mean', 'variance', 'median', 'min', 'max'])
-            # for d1, d2, d3, d4, d5, d6 in zip(train_data[0], train_data[1], train_data[2], train_data[3], train_data[4], train_data[5]):
             for d1, d2, d3, d4, d5, d6 in zip(*train_data):
                 writer.writerow([d1, d2, d3, d4, d5])
         with open(f'results/sim_test.csv', 'w') as f:
             writer = csv.writer(f)
             writer.writerow(['mean', 'variance', 'median', 'min', 'max'])
-            # for d1, d2, d3, d4, d5, d6 in zip(test_data[0], test_data[1], test_data[2], test_data[3], test_data[4], test_data[5]):
             for d1, d2, d3, d4, d5, d6 in zip(*test_data):
                 writer.writerow([d1, d2, d3, d4, d5])
         with open(f'results/sim_train_raw.csv', 'w') as f:
             # datas = train_cos_list[:num_of_samples].to('cpu').detach().numpy().copy()
             datas = train_cos_list.to('cpu').detach().numpy().copy()
             writer = csv.writer(f)
-            writer.writerow([d for d in range(len(data[0]))])
+            writer.writerow([d for d in range(datas.shape[1])])
             for data in datas:
                 writer.writerow([d for d in data])
         with open(f'results/sim_test_raw.csv', 'w') as f:
             # datas = test_cos_list[:num_of_samples].to('cpu').detach().numpy().copy()
             datas = test_cos_list.to('cpu').detach().numpy().copy()
             writer = csv.writer(f)
-            writer.writerow([d for d in range(len(data[0]))])
+            writer.writerow([d for d in range(datas.shape[1])])
             for data in datas:
                 writer.writerow([d for d in data])
     except:
         import traceback
         traceback.print_exc()
 
-    return ks_result.pvalue, ks_result.statistic, ks_result_var.pvalue, ks_result_var.statistic, ks_result_median.pvalue, ks_result_median.statistic, ks_result_min.pvalue, ks_result_min.statistic, ks_result_max.pvalue, ks_result_max.statistic, ks_result_2.pvalue, ks_result_2.statistic, ks_result_3.pvalue, ks_result_3.statistic, ks_result_5.pvalue, ks_result_5.statistic
+    return (
+        ks_result.pvalue, ks_result.statistic,
+        ks_result_var.pvalue, ks_result_var.statistic,
+        ks_result_median.pvalue, ks_result_median.statistic,
+        ks_result_min.pvalue, ks_result_min.statistic,
+        ks_result_max.pvalue, ks_result_max.statistic,
+        ks_result_n[0].pvalue, ks_result_n[0].statistic,
+        ks_result_n[1].pvalue, ks_result_n[1].statistic,
+        ks_result_n[2].pvalue, ks_result_n[2].statistic
+    )
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train MoCo')
