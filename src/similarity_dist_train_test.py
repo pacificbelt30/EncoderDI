@@ -14,27 +14,32 @@ import utils
 from model import Model, Classifier, StudentModel
 from quantize import load_quantize_model
 
-def seed_check(img, is_train: bool = True):
+def seed_check(imgs, is_train: bool = True):
     fig, axes = plt.subplots(3, 3, tight_layout=True)
     # fig, axes = plt.subplots(2, 5, tight_layout=True)
-    axes[0, 0].axis("off")
-    axes[0, 1].axis("off")
-    axes[0, 2].axis("off")
-    axes[1, 0].axis("off")
-    axes[1, 1].axis("off")
-    axes[1, 2].axis("off")
-    axes[2, 0].axis("off")
-    axes[2, 1].axis("off")
-    axes[2, 2].axis("off")
-    axes[0, 0].imshow(utils.inv_transform(img[0]).permute(1, 2, 0))
-    axes[0, 1].imshow(utils.inv_transform(img[1]).permute(1, 2, 0))
-    axes[0, 2].imshow(utils.inv_transform(img[2]).permute(1, 2, 0))
-    axes[1, 0].imshow(utils.inv_transform(img[3]).permute(1, 2, 0))
-    axes[1, 1].imshow(utils.inv_transform(img[4]).permute(1, 2, 0))
-    axes[1, 2].imshow(utils.inv_transform(img[5]).permute(1, 2, 0))
-    axes[2, 0].imshow(utils.inv_transform(img[6]).permute(1, 2, 0))
-    axes[2, 1].imshow(utils.inv_transform(img[7]).permute(1, 2, 0))
-    axes[2, 2].imshow(utils.inv_transform(img[8]).permute(1, 2, 0))
+    for i in range(3):
+        for j in range(3):
+            axes[i, j].axis("off")
+            # axes[i, j].imshow(utils.inv_transform(img[i * 3 + j]).permute(1, 2, 0))
+            axes[i, j].imshow(utils.inv_transform(imgs[i][j]).permute(1, 2, 0))
+    # axes[0, 0].axis("off")
+    # axes[0, 1].axis("off")
+    # axes[0, 2].axis("off")
+    # axes[1, 0].axis("off")
+    # axes[1, 1].axis("off")
+    # axes[1, 2].axis("off")
+    # axes[2, 0].axis("off")
+    # axes[2, 1].axis("off")
+    # axes[2, 2].axis("off")
+    # axes[0, 0].imshow(utils.inv_transform(img[0]).permute(1, 2, 0))
+    # axes[0, 1].imshow(utils.inv_transform(img[1]).permute(1, 2, 0))
+    # axes[0, 2].imshow(utils.inv_transform(img[2]).permute(1, 2, 0))
+    # axes[1, 0].imshow(utils.inv_transform(img[3]).permute(1, 2, 0))
+    # axes[1, 1].imshow(utils.inv_transform(img[4]).permute(1, 2, 0))
+    # axes[1, 2].imshow(utils.inv_transform(img[5]).permute(1, 2, 0))
+    # axes[2, 0].imshow(utils.inv_transform(img[6]).permute(1, 2, 0))
+    # axes[2, 1].imshow(utils.inv_transform(img[7]).permute(1, 2, 0))
+    # axes[2, 2].imshow(utils.inv_transform(img[8]).permute(1, 2, 0))
     if is_train:
         fig.savefig('results/seed_check_train.png')
     else:
@@ -66,8 +71,9 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
             if counter > num_of_samples:
                 break
             if counter == 0:
-                img = [img[1] for img in x]
-                seed_check(img, True)
+                # img = [img[1] for img in x]
+                imgs = [img[0] for img in x],[img[1] for img in x],[img[2] for img in x]
+                seed_check(imgs, True)
             feature_list = []
             for data in x:
                 if encoder_flag:
@@ -93,8 +99,9 @@ def sim(model, memory_data_loader, test_data_loader, num_of_samples:int=500, enc
             if counter > num_of_samples:
                 break
             if counter == 0:
-                img = [img[1] for img in x]
-                seed_check(img, False)
+                # img = [img[1] for img in x]
+                imgs = [img[0] for img in x],[img[1] for img in x],[img[2] for img in x]
+                seed_check(imgs, False)
             feature_list = []
             for data in x:
                 if encoder_flag:
