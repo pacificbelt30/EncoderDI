@@ -83,7 +83,7 @@ if __name__ == '__main__':
     parser.add_argument('--feature_dim', default=128, type=int, help='Feature dim for each image')
     parser.add_argument('--batch_size', default=256, type=int, help='Number of images in each mini-batch')
     parser.add_argument('--classes', default=10, type=int, help='the number of classes')
-    parser.add_argument('--num_of_samples', default=2500, type=int, help='num of samples')
+    parser.add_argument('--num_of_samples', default=10000, type=int, help='num of samples')
     parser.add_argument('--dataset', default='stl10', type=str, help='Training Dataset (e.g. CIFAR10, STL10)')
     parser.add_argument('--seed', default=42, type=int, help='specify static random seed')
     parser.add_argument('--model_path', type=str, default='results/128_4096_0.5_0.999_200_256_500_model.pth',
@@ -140,11 +140,13 @@ if __name__ == '__main__':
         test_data = torchvision.datasets.CIFAR100(root='data', train=False, transform=utils.test_transform, download=True)
 
     # random split train and test
+    test_size = min(args.num_of_samples, len(test_data))
     train_size = int(0.5 * len(train_data))
-    val_size = len(test_data)
+    val_size = test_size
     remain_size = len(train_data) - (train_size + val_size)
     generator = torch.Generator().manual_seed(args.seed)
     train_data, val_data, remain_data = torch.utils.data.random_split(train_data, [train_size, val_size, remain_size], generator)
+    test_data, _ = torch.utils.data.random_split(test_data, [test_size, len(test_data) - test_size], generator)
 
     shuffle=True
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=shuffle, num_workers=8, pin_memory=True)
