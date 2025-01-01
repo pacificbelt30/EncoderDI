@@ -141,9 +141,10 @@ if __name__ == '__main__':
 
     # random split train and test
     train_size = int(0.5 * len(train_data))
-    val_size = len(train_data) - train_size
+    val_size = len(test_data)
+    remain_size = len(train_data) - (train_size + val_size)
     generator = torch.Generator().manual_seed(args.seed)
-    train_data, val_data = torch.utils.data.random_split(train_data, [train_size, val_size], generator)
+    train_data, val_data, remain_data = torch.utils.data.random_split(train_data, [train_size, val_size, remain_size], generator)
 
     shuffle=True
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=shuffle, num_workers=8, pin_memory=True)
