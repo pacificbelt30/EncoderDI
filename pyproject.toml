@@ -16,6 +16,7 @@ dependencies = [
     "torchvision>=0.20.1",
     "matplotlib>=3.9.3",
     "pandas>=2.2.3",
+    "scikit-learn>=1.6.0",
 ]
 readme = "README.md"
 requires-python = ">= 3.8"
