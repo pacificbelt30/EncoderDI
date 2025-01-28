@@ -47,8 +47,9 @@ if __name__ == '__main__':
     parser.add_argument('--feature_dim', default=128, type=int, help='Feature dim for each image')
     parser.add_argument('--batch_size', default=256, type=int, help='Number of images in each mini-batch')
     parser.add_argument('--classes', default=10, type=int, help='the number of classes')
-    parser.add_argument('--num_of_samples', default=2500, type=int, help='num of samples')
-    parser.add_argument('--dataset', default='stl10', type=str, help='Training Dataset (e.g. CIFAR10, STL10)')
+    parser.add_argument('--cls_dataset', default='stl10', type=str, help='Training Dataset (e.g. CIFAR10, STL10)')
+    parser.add_argument('--enc_dataset', default='stl10', type=str, help='Pre-Training Dataset (e.g. CIFAR10, STL10)')
+    parser.add_argument('--model', default='classifier', type=str, help='model name')
     parser.add_argument('--seed', default=42, type=int, help='specify static random seed')
     parser.add_argument('--model_path', type=str, default='results/128_4096_0.5_0.999_200_256_500_model.pth',
                         help='The pretrained model path')
@@ -72,9 +73,10 @@ if __name__ == '__main__':
     # wandb init
     config = {
         "arch": "resnet34",
-        "dataset": args.dataset,
+        "cls_dataset": args.cls_dataset,
+        "enc_dataset": args.enc_dataset,
+        "model": args.model,
         "batch_size": args.batch_size,
-        "num_of_samples": args.num_of_samples,
         "seed": args.seed,
         "is_encoder": args.is_encoder,
         "is_modification": args.is_modification,
