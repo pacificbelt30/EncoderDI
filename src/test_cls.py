@@ -50,6 +50,7 @@ if __name__ == '__main__':
     parser.add_argument('--cls_dataset', default='stl10', type=str, help='Training Dataset (e.g. CIFAR10, STL10)')
     parser.add_argument('--enc_dataset', default='stl10', type=str, help='Pre-Training Dataset (e.g. CIFAR10, STL10)')
     parser.add_argument('--model', default='classifier', type=str, help='model name')
+    parser.add_argument('--ssl_method', default='moco', type=str, help='ssl method name')
     parser.add_argument('--seed', default=42, type=int, help='specify static random seed')
     parser.add_argument('--model_path', type=str, default='results/128_4096_0.5_0.999_200_256_500_model.pth',
                         help='The pretrained model path')
@@ -76,6 +77,7 @@ if __name__ == '__main__':
         "cls_dataset": args.cls_dataset,
         "enc_dataset": args.enc_dataset,
         "model": args.model,
+        "ssl_method": args.ssl_method,
         "batch_size": args.batch_size,
         "seed": args.seed,
         "is_encoder": args.is_encoder,
