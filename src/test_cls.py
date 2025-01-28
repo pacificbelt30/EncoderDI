@@ -87,10 +87,10 @@ if __name__ == '__main__':
 
     # data prepare
     query_number = 10
-    if args.dataset == 'stl10':
+    if args.cls_dataset == 'stl10':
         arg_data = STL10(root='data', split='test', transform=utils.stl_train_transform, download=True)
         no_arg_data = STL10(root='data', split='test', transform=utils.stl_test_ds_transform, download=True)
-    elif args.dataset == 'cifar10':
+    elif args.cls_dataset == 'cifar10':
         arg_data = CIFAR10(root='data', train=False, transform=utils.train_transform, download=True)
         no_arg_data = CIFAR10(root='data', train=False, transform=utils.test_transform, download=True)
     else:
