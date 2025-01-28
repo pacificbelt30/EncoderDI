@@ -146,6 +146,9 @@ if __name__ == '__main__':
         "no_arg_test_loss": ntest_loss,
         "no_arg_test_acc": ntest_acc,
         "no_arg_test_acc_5": ntest_acc_5,
+        "diff_loss": ntest_loss - atest_loss,
+        "diff_acc": ntest_acc - atest_acc,
+        "diff_acc_5": ntest_acc_5 - atest_acc_5,
     })
 
     # wandb finish
