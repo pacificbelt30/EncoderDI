@@ -92,15 +92,23 @@ if __name__ == '__main__':
     if args.cls_dataset == 'stl10':
         arg_data = STL10(root='data', split='test', transform=utils.stl_train_transform, download=True)
         no_arg_data = STL10(root='data', split='test', transform=utils.stl_test_ds_transform, download=True)
+        train_arg_data = STL10(root='data', split='train', transform=utils.stl_train_transform, download=True)
+        train_no_arg_data = STL10(root='data', split='train', transform=utils.stl_test_ds_transform, download=True)
     elif args.cls_dataset == 'cifar10':
         arg_data = CIFAR10(root='data', train=False, transform=utils.train_transform, download=True)
         no_arg_data = CIFAR10(root='data', train=False, transform=utils.test_transform, download=True)
+        train_arg_data = CIFAR10(root='data', train=True, transform=utils.train_transform, download=True)
+        train_no_arg_data = CIFAR10(root='data', train=True, transform=utils.test_transform, download=True)
     else:
         arg_data = CIFAR100(root='data', train=False, transform=utils.train_transform, download=True)
         no_arg_data = CIFAR100(root='data', train=False, transform=utils.test_transform, download=True)
+        train_arg_data = CIFAR100(root='data', train=True, transform=utils.train_transform, download=True)
+        train_no_arg_data = CIFAR100(root='data', train=True, transform=utils.test_transform, download=True)
     shuffle=False
     arg_loader = DataLoader(arg_data, batch_size=batch_size, shuffle=shuffle, num_workers=8, pin_memory=True)
     no_arg_loader = DataLoader(no_arg_data, batch_size=batch_size, shuffle=shuffle, num_workers=8, pin_memory=True)
+    train_arg_loader = DataLoader(train_arg_data, batch_size=batch_size, shuffle=shuffle, num_workers=8, pin_memory=True)
+    train_no_arg_loader = DataLoader(train_no_arg_data, batch_size=batch_size, shuffle=shuffle, num_workers=8, pin_memory=True)
 
     # model setup and optimizer config
     model_path = ''
@@ -137,6 +145,8 @@ if __name__ == '__main__':
     loss_criterion = torch.nn.CrossEntropyLoss()
     atest_loss, atest_acc, atest_acc_5 = utils.train_val(model, arg_loader, None, loss_criterion, 0, 1, device)
     ntest_loss, ntest_acc, ntest_acc_5 = utils.train_val(model, no_arg_loader, None, loss_criterion, 0, 1, device)
+    atrain_loss, atrain_acc, atrain_acc_5 = utils.train_val(model, train_arg_loader, None, loss_criterion, 0, 1, device)
+    ntrain_loss, ntrain_acc, ntrain_acc_5 = utils.train_val(model, train_no_arg_loader, None, loss_criterion, 0, 1, device)
 
     # save kstest result
     wandb.log({
@@ -146,9 +156,18 @@ if __name__ == '__main__':
         "no_arg_test_loss": ntest_loss,
         "no_arg_test_acc": ntest_acc,
         "no_arg_test_acc_5": ntest_acc_5,
-        "diff_loss": ntest_loss - atest_loss,
-        "diff_acc": ntest_acc - atest_acc,
-        "diff_acc_5": ntest_acc_5 - atest_acc_5,
+        "arg_train_loss": atrain_loss,
+        "arg_train_acc": atrain_acc,
+        "arg_train_acc_5": atrain_acc_5,
+        "no_arg_train_loss": ntrain_loss,
+        "no_arg_train_acc": ntrain_acc,
+        "no_arg_train_acc_5": ntrain_acc_5,
+        "diff_test_loss": ntest_loss - atest_loss,
+        "diff_test_acc": ntest_acc - atest_acc,
+        "diff_test_acc_5": ntest_acc_5 - atest_acc_5,
+        "diff_train_loss": ntrain_loss - atrain_loss,
+        "diff_train_acc": ntrain_acc - atrain_acc,
+        "diff_train_acc_5": ntrain_acc_5 - atrain_acc_5,
     })
 
     # wandb finish
